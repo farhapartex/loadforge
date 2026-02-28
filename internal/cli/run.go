@@ -2,7 +2,10 @@ package cli
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/farhapartex/loadforge/internal/config"
+	"github.com/farhapartex/loadforge/internal/engine"
 	"github.com/spf13/cobra"
 )
 
@@ -43,19 +46,44 @@ func init() {
 
 func runScenario(cmd *cobra.Command, args []string) error {
 	scenarioFile := args[0]
-	fmt.Printf("Loading scenario: %s\n", scenarioFile)
 
-	if workers > 0 {
-		fmt.Printf("Workers override: %d\n", workers)
+	cfg, err := config.Load(scenarioFile)
+	if err != nil {
+		return fmt.Errorf("failed to load scenario: %w", err)
 	}
 
-	if duration != "" {
-		fmt.Printf("Durnation override: %s\n", duration)
-	}
+	fmt.Printf("Loaded scenario: %s\n", cfg.Name)
+	fmt.Printf("Scenarios: %d\n\n", len(cfg.Scenarios))
 
-	if output != "" {
-		fmt.Printf("Output report: %s\n", output)
+	eng := engine.New(cfg)
+
+	for _, scenario := range cfg.Scenarios {
+		fmt.Printf(" --- Scenario: %s ---\n", scenario.Name)
+
+		for _, step := range scenario.Steps {
+			result := eng.ExecuteStep(step)
+			printResult(result)
+		}
 	}
 
 	return nil
+}
+
+func printResult(r *engine.Result) {
+	if r.Error != nil {
+		fmt.Printf("  [FAIL] %s %s\n", r.Method, r.URL)
+		fmt.Printf("         Error: %v\n", r.Error)
+		return
+	}
+
+	statusLabel := "OK"
+
+	if r.StatusCode >= 400 {
+		statusLabel = "ERR"
+	}
+
+	fmt.Printf("  [%s] %s %s\n", statusLabel, r.Method, r.URL)
+	fmt.Printf("       Status: %d | Duration: %v | Bytes: %d\n",
+		r.StatusCode, r.Duration.Round(time.Millisecond), r.BytesRead)
+
 }
