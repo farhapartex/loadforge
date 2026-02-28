@@ -23,7 +23,7 @@ func buildClient(opts *config.RequestOptions) *http.Client {
 
 	if opts != nil {
 		if opts.Timeout != "" {
-			if d, err := time.ParseDuration(opts.Timeout); err != nil {
+			if d, err := time.ParseDuration(opts.Timeout); err == nil {
 				timeout = d
 			}
 		}

@@ -1,0 +1,57 @@
+name: Sample API Test
+
+base_url: https://httpbin.org
+
+scenarios:
+  - name: basic requests
+    steps:
+      - name: GET request
+        method: GET
+        url: /get
+        headers:
+          X-Custom-Header: loadforge-test
+        options:
+          timeout: 10s
+          follow_redirects: true
+          tls_skip_verify: false
+          http2: true
+
+      - name: POST with JSON body
+        method: POST
+        url: /post
+        body:
+          json:
+            username: testuser
+            action: login
+        options:
+          timeout: 10s
+
+      - name: POST with form body
+        method: POST
+        url: /post
+        body:
+          form:
+            field1: value1
+            field2: value2
+
+      - name: Bearer token auth
+        method: GET
+        url: /bearer
+        auth:
+          bearer: my-secret-token
+
+      - name: Basic auth
+        method: GET
+        url: /basic-auth/user/pass
+        auth:
+          basic:
+            username: user
+            password: pass
+
+      - name: Custom auth header
+        method: GET
+        url: /get
+        auth:
+          header:
+            key: X-API-Key
+            value: super-secret-key

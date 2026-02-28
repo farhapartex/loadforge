@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -68,7 +69,7 @@ func resolveURL(baseURL string, stepURL string) (string, error) {
 	return base.ResolveReference(ref).String(), nil
 }
 
-func buildBody(body *config.Body) (*bytes.Reader, string, error) {
+func buildBody(body *config.Body) (io.Reader, string, error) {
 	if body == nil {
 		return nil, "", nil
 	}
@@ -119,6 +120,7 @@ func applyAuth(req *http.Request, auth *config.Auth) error {
 		if auth.Header.Key == "" {
 			return fmt.Errorf("auth.header.key cannot be empty")
 		}
+		req.Header.Set(auth.Header.Key, auth.Header.Value)
 	}
 
 	return nil
