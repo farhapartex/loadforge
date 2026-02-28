@@ -1,0 +1,19 @@
+name: Ramp-up Profile Test
+base_url: https://httpbin.org
+
+load:
+  profile: ramp
+  duration: 20s
+  ramp_up:
+    start_workers: 1
+    end_workers: 10
+    duration: 10s
+
+scenarios:
+  - name: ramp load
+    steps:
+      - name: GET request
+        method: GET
+        url: /get
+        options:
+          timeout: 5s

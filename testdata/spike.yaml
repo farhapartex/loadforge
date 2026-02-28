@@ -1,0 +1,20 @@
+name: Spike Profile Test
+base_url: https://httpbin.org
+
+load:
+  profile: spike
+  duration: 30s
+  spike:
+    base_workers: 3
+    spike_workers: 15
+    spike_duration: 5s
+    spike_every: 10s
+
+scenarios:
+  - name: spike load
+    steps:
+      - name: GET request
+        method: GET
+        url: /get
+        options:
+          timeout: 5s

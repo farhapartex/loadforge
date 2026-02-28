@@ -1,0 +1,17 @@
+name: Constant Profile Test
+base_url: https://httpbin.org
+
+load:
+  profile: constant
+  workers: 5
+  duration: 10s
+
+scenarios:
+  - name: basic load
+    weight: 100
+    steps:
+      - name: GET homepage
+        method: GET
+        url: /get
+        options:
+          timeout: 5s

@@ -1,0 +1,20 @@
+name: Step Profile Test
+base_url: https://httpbin.org
+
+load:
+  profile: step
+  duration: 30s
+  step:
+    start_workers: 2
+    step_size: 2
+    step_duration: 8s
+    max_workers: 10
+
+scenarios:
+  - name: step load
+    steps:
+      - name: GET request
+        method: GET
+        url: /get
+        options:
+          timeout: 5s
