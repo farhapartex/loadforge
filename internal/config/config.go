@@ -9,10 +9,10 @@ import (
 )
 
 type Config struct {
-	Name        string      `yaml:"name"`
-	BaseURL     string      `yaml:"base_url"`
-	Scenarios   []Scenario  `yaml:"scenarios"`
-	LoadProfile LoadProfile `yaml:"load_profile"`
+	Name      string     `yaml:"name"`
+	BaseURL   string     `yaml:"base_url"`
+	Scenarios []Scenario `yaml:"scenarios"`
+	Load      LoadConfig `yaml:"load"`
 }
 
 type Scenario struct {
@@ -61,13 +61,15 @@ type HeaderAuth struct {
 	Value string `yaml:"value"`
 }
 
-// LoadProfile define how load is applied over time
-type LoadProfile struct {
-	Type     string       `yaml:"type"`
-	Constant *Constant    `yaml:"constant"`
-	Ramp     *Ramp        `yaml:"ramp"`
-	Step     *StepProfile `yaml:"step_profile"`
-	Spike    *Spike       `yaml:"spike"`
+// LoadConfig define how load is applied over time
+type LoadConfig struct {
+	Profile     string        `yaml:"profile"`
+	Duration    string        `yaml:"duration"`
+	Workers     int           `yaml:"workers"`
+	RampUp      *RampUpConfig `yaml:"ramp_up"`
+	Step        *StepConfig   `yaml:"step"`
+	Spike       *SpikeConfig  `yaml:"spike"`
+	MaxRequests int           `yaml:"max_requests"`
 }
 
 // Constant keeps a fixed number of workers for a the entire duration
@@ -77,28 +79,25 @@ type Constant struct {
 	Requests int    `yaml:"requests"`
 }
 
-type Ramp struct {
-	Target       int    `yaml:"target"`
-	RampDuration string `yaml:"ramp_duration"`
-	HoldDuration string `yaml:"hold_duration"`
+type RampUpConfig struct {
+	StartWorkers int    `yaml:"start_workers"` // workers at the beginning
+	EndWorkers   int    `yaml:"end_workers"`   // workers at the end
+	Duration     string `yaml:"duration"`      // how long to ramp up over
 }
 
 // Spike runs at baseline, suddenly spikes then returns to baseline
-type Spike struct {
-	Baseline      int    `yaml:"baseline"`
-	Peak          int    `yaml:"peak"`
-	BaselinePre   string `yaml:"baseline_pre"`
-	SpikeDuration string `yaml:"spike_duration"`
-	BaselinePost  string `yaml:"baseline_post"`
+type StepConfig struct {
+	StartWorkers int    `yaml:"start_workers"` // initial worker count
+	StepSize     int    `yaml:"step_size"`     // how many workers to add per step
+	StepDuration string `yaml:"step_duration"` // how long each step lasts e.g. "30s"
+	MaxWorkers   int    `yaml:"max_workers"`   // cap
 }
 
-// StepProfile increases workers in stages
-type StepProfile struct {
-	Start      int    `yaml:"start"`
-	StepSize   int    `yaml:"step_size"`
-	StepEvery  string `yaml:"step_every"`
-	MaxWorkers int    `yaml:"max_workers"`
-	Duration   string `yaml:"duration"`
+type SpikeConfig struct {
+	BaseWorkers   int    `yaml:"base_workers"`
+	SpikeWorkers  int    `yaml:"spike_workers"`
+	SpikeDuration string `yaml:"spike_duration"`
+	SpikeEvery    string `yaml:"spike_every"`
 }
 
 func Load(path string) (*Config, error) {
@@ -140,7 +139,7 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	if err := c.LoadProfile.Validate(); err != nil {
+	if err := c.Load.Validate(); err != nil {
 		return fmt.Errorf("invalid load_profile: %w", err)
 	}
 
@@ -184,90 +183,81 @@ func validateStep(scenarioIdx int, stepIdx int, step Step) error {
 	return nil
 }
 
-func (lp *LoadProfile) Validate() error {
-	validTypes := map[string]bool{
+func (lc *LoadConfig) Validate() error {
+	validProfiles := map[string]bool{
 		"constant": true,
 		"ramp":     true,
 		"step":     true,
 		"spike":    true,
 	}
 
-	if lp.Type == "" {
-		return fmt.Errorf(("load_profile.type is required"))
+	if lc.Profile == "" {
+		lc.Profile = "constant" // sensible default
 	}
 
-	if !validTypes[lp.Type] {
-		return fmt.Errorf("unknown load_profile type %q, must be one: constant, ramp, step and spikle", lp.Type)
+	if !validProfiles[lc.Profile] {
+		return fmt.Errorf("unknown profile %q, must be one of: constant, ramp, step, spike", lc.Profile)
 	}
 
-	switch lp.Type {
+	if lc.Duration == "" && lc.MaxRequests == 0 {
+		return fmt.Errorf("load must have either duration or max_requests set")
+	}
+
+	if lc.Duration != "" {
+		if _, err := time.ParseDuration(lc.Duration); err != nil {
+			return fmt.Errorf("invalid duration %q: %w", lc.Duration, err)
+		}
+	}
+
+	switch lc.Profile {
 	case "constant":
-		if lp.Constant == nil {
-			return fmt.Errorf("load_profile.constant config is required when type is constant")
+		if lc.Workers <= 0 {
+			return fmt.Errorf("constant profile requires workers > 0")
 		}
-
-		if lp.Constant.Workers <= 0 {
-			return fmt.Errorf("load_profile.constant.workers must be > 0")
-		}
-
-		if lp.Constant.Duration == "" && lp.Constant.Requests <= 0 {
-			return fmt.Errorf("load_profile.constant musthave either duration or requests set")
-		}
-
-		if lp.Constant.Duration != "" {
-			if _, err := time.ParseDuration(lp.Constant.Duration); err != nil {
-				return fmt.Errorf("invalid constant.duration: %w", err)
-			}
-		}
-
 	case "ramp":
-		if lp.Ramp == nil {
-			return fmt.Errorf("load_profile.ramp config is required when type is ramp")
+		if lc.RampUp == nil {
+			return fmt.Errorf("ramp profile requires ramp_up config")
 		}
-		if lp.Ramp.Target <= 0 {
-			return fmt.Errorf("load_profile.ramp.target must be > 0")
+		if lc.RampUp.EndWorkers <= 0 {
+			return fmt.Errorf("ramp_up.end_workers must be > 0")
 		}
-		if _, err := time.ParseDuration(lp.Ramp.RampDuration); err != nil {
-			return fmt.Errorf("invalid ramp.ramp_duration: %w", err)
+		if lc.RampUp.Duration == "" {
+			return fmt.Errorf("ramp_up.duration is required")
 		}
-		if _, err := time.ParseDuration(lp.Ramp.HoldDuration); err != nil {
-			return fmt.Errorf("invalid ramp.hold_duration: %w", err)
+		if _, err := time.ParseDuration(lc.RampUp.Duration); err != nil {
+			return fmt.Errorf("ramp_up.duration invalid: %w", err)
 		}
-
 	case "step":
-		if lp.Step == nil {
-			return fmt.Errorf("load_profile.step_profile config is required when type is step")
+		if lc.Step == nil {
+			return fmt.Errorf("step profile requires step config")
 		}
-		if lp.Step.Start <= 0 {
-			return fmt.Errorf("load_profile.step_profile.start must be > 0")
+		if lc.Step.StepSize <= 0 {
+			return fmt.Errorf("step.step_size must be > 0")
 		}
-		if lp.Step.StepSize <= 0 {
-			return fmt.Errorf("load_profile.step_profile.step_size must be > 0")
+		if lc.Step.MaxWorkers <= 0 {
+			return fmt.Errorf("step.max_workers must be > 0")
 		}
-		if lp.Step.MaxWorkers <= 0 {
-			return fmt.Errorf("load_profile.step_profile.max_workers must be > 0")
+		if lc.Step.StepDuration == "" {
+			return fmt.Errorf("step.step_duration is required")
 		}
-		if _, err := time.ParseDuration(lp.Step.StepEvery); err != nil {
-			return fmt.Errorf("invalid step_profile.step_every: %w", err)
+		if _, err := time.ParseDuration(lc.Step.StepDuration); err != nil {
+			return fmt.Errorf("step.step_duration invalid: %w", err)
 		}
-		if _, err := time.ParseDuration(lp.Step.Duration); err != nil {
-			return fmt.Errorf("invalid step_profile.duration: %w", err)
-		}
-
 	case "spike":
-		if lp.Spike == nil {
-			return fmt.Errorf("load_profile.spike config is required when type is spike")
+		if lc.Spike == nil {
+			return fmt.Errorf("spike profile requires spike config")
 		}
-		if lp.Spike.Baseline <= 0 {
-			return fmt.Errorf("load_profile.spike.baseline must be > 0")
+		if lc.Spike.BaseWorkers <= 0 {
+			return fmt.Errorf("spike.base_workers must be > 0")
 		}
-		if lp.Spike.Peak <= lp.Spike.Baseline {
-			return fmt.Errorf("load_profile.spike.peak must be greater than baseline")
+		if lc.Spike.SpikeWorkers <= 0 {
+			return fmt.Errorf("spike.spike_workers must be > 0")
 		}
-		for _, d := range []string{lp.Spike.BaselinePre, lp.Spike.SpikeDuration, lp.Spike.BaselinePost} {
-			if _, err := time.ParseDuration(d); err != nil {
-				return fmt.Errorf("invalid spike duration %q: %w", d, err)
-			}
+		if lc.Spike.SpikeDuration == "" {
+			return fmt.Errorf("spike.spike_duration is required")
+		}
+		if lc.Spike.SpikeEvery == "" {
+			return fmt.Errorf("spike.spike_every is required")
 		}
 	}
 
