@@ -12,6 +12,7 @@ import (
 
 	"github.com/farhapartex/loadforge/internal/config"
 	"github.com/farhapartex/loadforge/internal/loader"
+	"github.com/farhapartex/loadforge/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +22,7 @@ var (
 	output   string
 	varFlags []string
 	envFile  string
+	noUI     bool
 )
 
 var runCmd = &cobra.Command{
@@ -47,6 +49,9 @@ func init() {
 	)
 	runCmd.Flags().StringVar(
 		&envFile, "env-file", "", "Path to a .env file to load variables from",
+	)
+	runCmd.Flags().BoolVar(
+		&noUI, "no-ui", false, "Disable the terminal UI, print plain text instead",
 	)
 }
 
@@ -80,15 +85,50 @@ func runScenario(cmd *cobra.Command, args []string) error {
 		cancel()
 	}()
 
+	metricCh := make(chan loader.MetricsSnapshot, 10)
+	doneCh := make(chan struct{})
+
 	onTick := func(activeWorkers int) {
 		fmt.Println("Workers : %d active\n", activeWorkers)
 	}
 
-	result, err := loader.Run(ctx, cfg, onTick, nil)
-	if err != nil {
-		return fmt.Errorf("load test failed: %w", err)
+	var runErr error
+	go func() {
+		_, runErr = loader.Run(ctx, cfg, onTick, metricCh, doneCh)
+	}()
+
+	if noUI {
+		<-doneCh
+
+		for len(metricCh) > 0 {
+			<-metricCh
+		}
+
+		fmt.Printf("\\nScenario : %s\\n", cfg.Name)
+		fmt.Printf("Base URL : %s\\n\\n", cfg.BaseURL)
+		return runErr
 	}
-	printResult(result.Metrics)
+
+	model := ui.NewModel(
+		cfg.Name,
+		cfg.BaseURL,
+		cfg.Load.Profile,
+		cfg.Load.Duration,
+		metricCh,
+		doneCh,
+	)
+
+	if err := ui.Run(model); err != nil {
+		return fmt.Errorf("ui error: %w", err)
+	}
+
+	return runErr
+
+	// result, err := loader.Run(ctx, cfg, onTick, nil)
+	// if err != nil {
+	// 	return fmt.Errorf("load test failed: %w", err)
+	// }
+	// printResult(result.Metrics)
 
 	// eng := engine.New(cfg)
 
@@ -101,7 +141,7 @@ func runScenario(cmd *cobra.Command, args []string) error {
 	// 	}
 	// }
 
-	return nil
+	//return nil
 }
 
 func printResult(m *loader.Metrics) {

@@ -3,16 +3,27 @@ package loader
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/farhapartex/loadforge/internal/config"
 	"github.com/farhapartex/loadforge/internal/engine"
 )
 
+const metricsInterval = 250 * time.Millisecond
+
 type RunResult struct {
 	Metrics *Metrics
 }
 
-func Run(ctx context.Context, cfg *config.Config, onTick func(workers int), onResult func(*Metrics)) (*RunResult, error) {
+func Run(
+	ctx context.Context,
+	cfg *config.Config,
+	onTick func(workers int),
+	metricsCh chan<- MetricsSnapshot,
+	doneCh chan<- struct{},
+	//onResult func(*Metrics),
+) (*RunResult, error) {
+
 	eng := engine.New(cfg)
 	metrics := newMetrics()
 
@@ -24,6 +35,8 @@ func Run(ctx context.Context, cfg *config.Config, onTick func(workers int), onRe
 		fmt.Printf("Max Reqs : %d\n", cfg.Load.MaxRequests)
 	}
 	fmt.Println()
+
+	go broadcastMetrics(ctx, metrics, metricsCh)
 
 	switch cfg.Load.Profile {
 	case "constant":
@@ -40,9 +53,34 @@ func Run(ctx context.Context, cfg *config.Config, onTick func(workers int), onRe
 
 	metrics.finish()
 
-	if onResult != nil {
-		onResult(metrics)
+	if doneCh != nil {
+		close(doneCh)
 	}
 
+	// if onResult != nil {
+	// 	onResult(metrics)
+	// }
+
 	return &RunResult{Metrics: metrics}, nil
+}
+
+func broadcastMetrics(ctx context.Context, m *Metrics, ch chan<- MetricsSnapshot) {
+	ticker := time.NewTicker(metricsInterval)
+
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			snap := m.Snapshot()
+			select {
+			case ch <- snap:
+			default:
+				// Drop if UI is not reading fast enough
+				return
+			}
+		}
+	}
 }
