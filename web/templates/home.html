@@ -1,0 +1,35 @@
+{{define "content"}}
+<div class="quick-actions">
+  <a href="/run" class="btn btn-primary">Run New Test</a>
+  <a href="/history" class="btn btn-outline">View History</a>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Runs</div>
+    <div class="stat-value">{{.Data.TotalRuns}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Last Status</div>
+    <div class="stat-value stat-status-{{.Data.LastStatus}}">{{.Data.LastStatus}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Last Run</div>
+    <div class="stat-value stat-secondary">{{.Data.LastRunAt}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active Tests</div>
+    <div class="stat-value">{{.Data.ActiveTests}}</div>
+  </div>
+</div>
+
+<div class="log-section">
+  <div class="log-header">
+    <span class="log-title">Activity Log</span>
+    <button class="btn btn-sm btn-outline" id="btn-clear-log">Clear</button>
+  </div>
+  <div class="log-output" id="log-output">
+    <div class="log-empty">Waiting for activity...</div>
+  </div>
+</div>
+{{end}}

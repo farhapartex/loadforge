@@ -1,0 +1,61 @@
+{{define "login"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — LoadForge</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body class="login-body">
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-brand-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="26" height="26" style="color:#fff">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+        </div>
+        <h1>LoadForge</h1>
+        <p>Load Testing Platform</p>
+      </div>
+
+      {{if .Error}}
+      <div class="alert alert-error">
+        <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        {{.Error}}
+      </div>
+      {{end}}
+
+      <form method="POST" action="/login" autocomplete="on">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            placeholder="Enter your username"
+            autocomplete="username"
+            required
+            autofocus
+          />
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="Enter your password"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+      </form>
+    </div>
+  </div>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
+{{end}}
