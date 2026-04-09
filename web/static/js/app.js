@@ -10,6 +10,55 @@
     }, 4000);
   });
 
+  // ── Run Test modal ────────────────────────────────────────────
+  var modalOverlay  = document.getElementById('modal-run-test');
+  var btnRunTest    = document.getElementById('btn-run-test');
+  var btnModalClose = document.getElementById('btn-modal-close');
+  var btnModalCancel= document.getElementById('btn-modal-cancel');
+  var btnModalSubmit= document.getElementById('btn-modal-submit');
+  var inputApiUrl   = document.getElementById('input-api-doc-url');
+
+  function openModal() {
+    if (!modalOverlay) return;
+    modalOverlay.classList.add('open');
+    if (inputApiUrl) inputApiUrl.focus();
+  }
+
+  function closeModal() {
+    if (!modalOverlay) return;
+    modalOverlay.classList.remove('open');
+    if (inputApiUrl) inputApiUrl.value = '';
+    var jwtInput = document.getElementById('input-jwt-token');
+    if (jwtInput) jwtInput.value = '';
+  }
+
+  if (btnRunTest)     btnRunTest.addEventListener('click', openModal);
+  if (btnModalClose)  btnModalClose.addEventListener('click', closeModal);
+  if (btnModalCancel) btnModalCancel.addEventListener('click', closeModal);
+
+  if (modalOverlay) {
+    modalOverlay.addEventListener('click', function (e) {
+      if (e.target === modalOverlay) closeModal();
+    });
+  }
+
+  if (btnModalSubmit) {
+    btnModalSubmit.addEventListener('click', function () {
+      if (!inputApiUrl || !inputApiUrl.value.trim()) {
+        inputApiUrl.focus();
+        inputApiUrl.reportValidity();
+        return;
+      }
+      // TODO: wire to POST /api/run when backend is ready
+    });
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modalOverlay && modalOverlay.classList.contains('open')) {
+      closeModal();
+    }
+  });
+
   // ── Activity log stream ───────────────────────────────────────
   var logOutput = document.getElementById('log-output');
   if (!logOutput) return;
@@ -42,8 +91,8 @@
     var line = document.createElement('div');
     line.className = 'log-line log-' + entry.level.toLowerCase();
     line.innerHTML =
-      '<span class="log-time">'  + entry.timestamp          + '</span>' +
-      '<span class="log-level">' + '[' + entry.level + ']'  + '</span>' +
+      '<span class="log-time">'  + entry.timestamp           + '</span>' +
+      '<span class="log-level">' + '[' + entry.level + ']'   + '</span>' +
       '<span class="log-msg">'   + escapeHtml(entry.message) + '</span>';
 
     logOutput.appendChild(line);
@@ -57,14 +106,6 @@
     }
   }
 
-  function systemEntry(msg) {
-    appendEntry({
-      timestamp: new Date().toTimeString().slice(0, 8),
-      level:     'WARN',
-      message:   msg,
-    });
-  }
-
   var source = new EventSource('/api/logs/stream');
 
   source.onmessage = function (e) {
@@ -74,6 +115,10 @@
   };
 
   source.onerror = function () {
-    systemEntry('Log stream disconnected. Reconnecting...');
+    appendEntry({
+      timestamp: new Date().toTimeString().slice(0, 8),
+      level:     'WARN',
+      message:   'Log stream disconnected. Reconnecting...',
+    });
   };
 })();

@@ -1,9 +1,13 @@
 package web
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +16,7 @@ import (
 const (
 	logBufferSize    = 200
 	logChannelBuffer = 64
+	tailPollInterval = 300 * time.Millisecond
 )
 
 type LogEntry struct {
@@ -69,17 +74,55 @@ func (lb *LogBroadcaster) publish(entry LogEntry) {
 	lb.mu.Unlock()
 }
 
-func (lb *LogBroadcaster) Write(p []byte) (int, error) {
-	msg := strings.TrimRight(string(p), "\n\r")
-	if msg == "" {
-		return len(p), nil
+// tailFile opens path (creating it if needed), seeks to the current end so
+// existing content is skipped, then polls every tailPollInterval for new lines
+// and broadcasts them. Stops when ctx is cancelled.
+func (lb *LogBroadcaster) tailFile(ctx context.Context, path string) {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0644)
+	if err != nil {
+		log.Printf("WARN tailFile: cannot open %q: %v", path, err)
+		return
 	}
-	lb.publish(LogEntry{
+	defer f.Close()
+
+	reader := bufio.NewReader(f)
+	ticker := time.NewTicker(tailPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			lb.drainLines(reader)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (lb *LogBroadcaster) drainLines(r *bufio.Reader) {
+	for {
+		line, err := r.ReadString('\n')
+		line = strings.TrimRight(line, "\r\n")
+		if line != "" {
+			lb.publish(parseLogLine(line))
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
+// parseLogLine handles the format written by log.Ltime: "15:04:05 message"
+func parseLogLine(line string) LogEntry {
+	if len(line) > 9 && line[8] == ' ' {
+		msg := line[9:]
+		return LogEntry{Timestamp: line[:8], Level: detectLevel(msg), Message: msg}
+	}
+	return LogEntry{
 		Timestamp: time.Now().Format("15:04:05"),
-		Level:     detectLevel(msg),
-		Message:   msg,
-	})
-	return len(p), nil
+		Level:     detectLevel(line),
+		Message:   line,
+	}
 }
 
 func (lb *LogBroadcaster) handleStream(w http.ResponseWriter, r *http.Request) {

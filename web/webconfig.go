@@ -14,6 +14,7 @@ type WebConfig struct {
 	Username   string `yaml:"username"`
 	Password   string `yaml:"password"`
 	SessionTTL string `yaml:"session_ttl"`
+	LogFile    string `yaml:"log_file"`
 }
 
 func (c *WebConfig) parsedSessionTTL() time.Duration {
@@ -47,5 +48,6 @@ func defaultWebConfig() *WebConfig {
 		Username:   "admin",
 		Password:   "admin",
 		SessionTTL: "24h",
+		LogFile:    "load_forge.logs",
 	}
 }
