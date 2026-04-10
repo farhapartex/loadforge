@@ -107,7 +107,7 @@ func applyAuth(req *http.Request, auth *config.Auth) error {
 	}
 
 	if auth.Basic != nil {
-		req.SetBasicAuth(auth.Basic.Username, auth.Basic.Pasword)
+		req.SetBasicAuth(auth.Basic.Username, auth.Basic.Password)
 		return nil
 	}
 

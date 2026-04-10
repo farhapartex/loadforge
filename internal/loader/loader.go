@@ -15,26 +15,19 @@ type RunResult struct {
 	Metrics *Metrics
 }
 
+// Run executes a load test from an in-memory config.
+// It does not read from disk — callers are responsible for building cfg
+// (via config.LoadFromFile for the CLI, or via the OpenAPI generator for the web layer).
 func Run(
 	ctx context.Context,
 	cfg *config.Config,
 	onTick func(workers int),
 	metricsCh chan<- MetricsSnapshot,
 	doneCh chan<- struct{},
-	//onResult func(*Metrics),
 ) (*RunResult, error) {
 
 	eng := engine.New(cfg)
 	metrics := newMetrics()
-
-	fmt.Printf("Profile  : %s\n", cfg.Load.Profile)
-	if cfg.Load.Duration != "" {
-		fmt.Printf("Duration : %s\n", cfg.Load.Duration)
-	}
-	if cfg.Load.MaxRequests > 0 {
-		fmt.Printf("Max Reqs : %d\n", cfg.Load.MaxRequests)
-	}
-	fmt.Println()
 
 	go broadcastMetrics(ctx, metrics, metricsCh)
 
@@ -57,16 +50,11 @@ func Run(
 		close(doneCh)
 	}
 
-	// if onResult != nil {
-	// 	onResult(metrics)
-	// }
-
 	return &RunResult{Metrics: metrics}, nil
 }
 
 func broadcastMetrics(ctx context.Context, m *Metrics, ch chan<- MetricsSnapshot) {
 	ticker := time.NewTicker(metricsInterval)
-
 	defer ticker.Stop()
 
 	for {
@@ -78,8 +66,6 @@ func broadcastMetrics(ctx context.Context, m *Metrics, ch chan<- MetricsSnapshot
 			select {
 			case ch <- snap:
 			default:
-				// Drop if UI is not reading fast enough
-				return
 			}
 		}
 	}

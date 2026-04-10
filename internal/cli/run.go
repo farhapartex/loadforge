@@ -58,7 +58,7 @@ func init() {
 func runScenario(cmd *cobra.Command, args []string) error {
 	scenarioFile := args[0]
 
-	cfg, err := config.Load(scenarioFile)
+	cfg, err := config.LoadFromFile(scenarioFile)
 	if err != nil {
 		return fmt.Errorf("failed to load scenario: %w", err)
 	}
