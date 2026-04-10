@@ -12,31 +12,31 @@ var harCmd = &cobra.Command{
 }
 
 var harReplayCmd = &cobra.Command{
-	Use:   "reply [har file]",
-	Short: "Reply a HAR file as a load test",
+	Use:   "replay [har file]",
+	Short: "Replay a HAR file as a load test",
 	Args:  cobra.ExactArgs(1),
-	RunE:  harReply,
+	RunE:  harReplay,
 }
 
-var harConvertedCmd = &cobra.Command{
-	Use:   "conver [har file]",
-	Short: "Convert a HAR file to a loadforge scanario YAML",
+var harConvertCmd = &cobra.Command{
+	Use:   "convert [har file]",
+	Short: "Convert a HAR file to a loadforge scenario YAML",
 	Args:  cobra.ExactArgs(1),
 	RunE:  harConvert,
 }
 
 func init() {
+	harCmd.AddCommand(harReplayCmd)
+	harCmd.AddCommand(harConvertCmd)
 	rootCmd.AddCommand(harCmd)
-	rootCmd.AddCommand(harReplayCmd)
-	rootCmd.AddCommand(harConvertedCmd)
 }
 
-func harReply(cmd *cobra.Command, args []string) error {
-	fmt.Printf("Replaying HAR: %s\n", args[0])
+func harReplay(cmd *cobra.Command, args []string) error {
+	fmt.Printf("HAR replay is not yet implemented: %s\n", args[0])
 	return nil
 }
 
 func harConvert(cmd *cobra.Command, args []string) error {
-	fmt.Printf("Converting HAR: %s to %s\n", args[0], output)
+	fmt.Printf("HAR convert is not yet implemented: %s\n", args[0])
 	return nil
 }

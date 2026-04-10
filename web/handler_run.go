@@ -2,10 +2,13 @@ package web
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/farhapartex/loadforge/internal/specloader"
 )
 
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
@@ -20,17 +23,18 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRunStart(w http.ResponseWriter, r *http.Request) {
-	specURL  := strings.TrimSpace(r.FormValue("spec_url"))
-	token    := strings.TrimSpace(r.FormValue("token"))
-	profile  := strings.TrimSpace(r.FormValue("profile"))
-	duration := strings.TrimSpace(r.FormValue("duration"))
-	workers  := 0
-	if w2, err := strconv.Atoi(r.FormValue("workers")); err == nil && w2 > 0 {
-		workers = w2
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		r.ParseForm()
 	}
 
-	if specURL == "" {
-		writeJSON(w, http.StatusBadRequest, apiError("spec_url is required"))
+	sourceType := strings.TrimSpace(r.FormValue("source"))
+	if sourceType == "" {
+		sourceType = "openapi"
+	}
+
+	loader, err := s.loaders.get(sourceType)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, apiError(err.Error()))
 		return
 	}
 
@@ -39,55 +43,61 @@ func (s *Server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Fetching spec url=%s", specURL)
+	input := specloader.Input{
+		URL:      strings.TrimSpace(r.FormValue("spec_url")),
+		Token:    strings.TrimSpace(r.FormValue("token")),
+		Profile:  strings.TrimSpace(r.FormValue("profile")),
+		Duration: strings.TrimSpace(r.FormValue("duration")),
+	}
+	if w2, err2 := strconv.Atoi(r.FormValue("workers")); err2 == nil && w2 > 0 {
+		input.Workers = w2
+	}
 
-	data, _, err := s.openapi.Fetch(specURL, token)
+	if sourceType == "postman" {
+		file, header, ferr := r.FormFile("postman_file")
+		if ferr != nil {
+			writeJSON(w, http.StatusBadRequest, apiError("postman_file is required for postman source"))
+			return
+		}
+		defer file.Close()
+		input.Data, err = io.ReadAll(file)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, apiError("failed to read uploaded file"))
+			return
+		}
+		input.Filename = header.Filename
+	}
+
+	if sourceType == "openapi" && input.URL == "" {
+		writeJSON(w, http.StatusBadRequest, apiError("spec_url is required for openapi source"))
+		return
+	}
+
+	log.Printf("Starting run  source=%s loader=%s", sourceType, loader.Name())
+
+	cfg, err := loader.Load(input)
 	if err != nil {
-		log.Printf("Fetch failed: %v", err)
-		writeJSON(w, http.StatusBadRequest, apiError("failed to fetch spec: "+err.Error()))
+		log.Printf("Loader failed: %v", err)
+		writeJSON(w, http.StatusBadRequest, apiError(err.Error()))
 		return
 	}
 
-	spec, err := s.openapi.Parse(data)
-	if err != nil {
-		log.Printf("Parse failed: %v", err)
-		writeJSON(w, http.StatusBadRequest, apiError("failed to parse spec: "+err.Error()))
-		return
+	ref := input.URL
+	if ref == "" {
+		ref = input.Filename
 	}
 
-	ops := s.openapi.Extract(spec)
-	if len(ops) == 0 {
-		writeJSON(w, http.StatusBadRequest, apiError("no operations found in spec"))
-		return
-	}
-
-	cfg, err := s.openapi.Generate(ops, spec.BaseURL, token)
-	if err != nil {
-		log.Printf("Generate failed: %v", err)
-		writeJSON(w, http.StatusBadRequest, apiError("failed to generate config: "+err.Error()))
-		return
-	}
-
-	if workers > 0 {
-		cfg.Load.Workers = workers
-	}
-	if duration != "" {
-		cfg.Load.Duration = duration
-	}
-	if profile != "" {
-		cfg.Load.Profile = profile
-	}
-
-	if err := s.runner.Start(cfg, specURL, s.stats.recordDone); err != nil {
+	if err := s.runner.Start(cfg, ref, s.stats.recordDone); err != nil {
 		writeJSON(w, http.StatusConflict, apiError(err.Error()))
 		return
 	}
 
-	s.stats.recordStart(specURL)
+	s.stats.recordStart(ref)
 
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"status":  "started",
-		"spec":    specURL,
+		"source":  sourceType,
+		"ref":     ref,
 		"workers": cfg.Load.Workers,
 		"profile": cfg.Load.Profile,
 	})

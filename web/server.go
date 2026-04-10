@@ -16,16 +16,16 @@ import (
 )
 
 type Server struct {
-	cfg       *WebConfig
-	sessions  *SessionStore
+	cfg      *WebConfig
+	sessions *SessionStore
 	templates *templateCache
-	logs      *LogBroadcaster
-	stats     *RunStats
-	runner    *runner.Runner
-	openapi   *openapiClient
-	logFile   *os.File
-	mux       *http.ServeMux
-	http      *http.Server
+	logs     *LogBroadcaster
+	stats    *RunStats
+	runner   *runner.Runner
+	loaders  *loaderRegistry
+	logFile  *os.File
+	mux      *http.ServeMux
+	http     *http.Server
 }
 
 func newServer(configPath string) (*Server, error) {
@@ -53,8 +53,8 @@ func newServer(configPath string) (*Server, error) {
 		templates: tmplCache,
 		logs:      newLogBroadcaster(),
 		stats:     newRunStats(),
-		runner:    runner.New(),
-		openapi:   newOpenapiClient(),
+		runner:  runner.New(),
+		loaders: newLoaderRegistry(),
 		logFile:   logFile,
 		mux:       mux,
 	}

@@ -19,6 +19,7 @@
   var btnModalSubmit = document.getElementById('btn-modal-submit');
   var inputApiUrl    = document.getElementById('input-api-doc-url');
   var runErrorEl     = document.getElementById('run-error');
+  var inputSource    = document.getElementById('input-source');
 
   function openModal() {
     if (!modalOverlay) return;
@@ -30,8 +31,7 @@
   function closeModal() {
     if (!modalOverlay) return;
     modalOverlay.classList.remove('open');
-    var form = modalOverlay.querySelectorAll('input, select');
-    form.forEach(function (el) {
+    modalOverlay.querySelectorAll('input:not([type=file]), select').forEach(function (el) {
       if (el.defaultValue !== undefined) el.value = el.defaultValue;
     });
     showRunError('');
@@ -47,6 +47,28 @@
       runErrorEl.style.display = 'none';
     }
   }
+
+  // Source tab switching
+  var sourceTabs = document.querySelectorAll('.source-tab:not([disabled])');
+  sourceTabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      sourceTabs.forEach(function (t) {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+
+      var source = tab.dataset.source;
+      if (inputSource) inputSource.value = source;
+
+      document.querySelectorAll('.source-panel').forEach(function (panel) {
+        panel.hidden = true;
+      });
+      var activePanel = document.getElementById('panel-' + source);
+      if (activePanel) activePanel.hidden = false;
+    });
+  });
 
   if (btnRunTest)     btnRunTest.addEventListener('click', openModal);
   if (btnModalClose)  btnModalClose.addEventListener('click', closeModal);
@@ -66,35 +88,44 @@
 
   if (btnModalSubmit) {
     btnModalSubmit.addEventListener('click', function () {
-      if (!inputApiUrl || !inputApiUrl.value.trim()) {
-        inputApiUrl.focus();
-        inputApiUrl.reportValidity();
-        return;
+      var source = inputSource ? inputSource.value : 'openapi';
+
+      if (source === 'openapi') {
+        if (!inputApiUrl || !inputApiUrl.value.trim()) {
+          if (inputApiUrl) inputApiUrl.focus();
+          showRunError('API Doc URL is required.');
+          return;
+        }
       }
 
-      var params = new URLSearchParams();
-      params.append('spec_url', inputApiUrl.value.trim());
+      var formData = new FormData();
+      formData.append('source', source);
+
+      if (inputApiUrl && inputApiUrl.value.trim()) formData.append('spec_url', inputApiUrl.value.trim());
 
       var token = document.getElementById('input-jwt-token');
-      if (token && token.value.trim()) params.append('token', token.value.trim());
+      if (token && token.value.trim()) formData.append('token', token.value.trim());
 
       var workers = document.getElementById('input-workers');
-      if (workers && workers.value) params.append('workers', workers.value);
+      if (workers && workers.value) formData.append('workers', workers.value);
 
       var duration = document.getElementById('input-duration');
-      if (duration && duration.value.trim()) params.append('duration', duration.value.trim());
+      if (duration && duration.value.trim()) formData.append('duration', duration.value.trim());
 
       var profile = document.getElementById('input-profile');
-      if (profile && profile.value) params.append('profile', profile.value);
+      if (profile && profile.value) formData.append('profile', profile.value);
+
+      if (source === 'postman') {
+        var fileInput = document.getElementById('input-postman-file');
+        if (fileInput && fileInput.files.length > 0) {
+          formData.append('postman_file', fileInput.files[0]);
+        }
+      }
 
       btnModalSubmit.disabled = true;
       btnModalSubmit.textContent = 'Starting…';
 
-      fetch('/api/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      })
+      fetch('/api/run', { method: 'POST', body: formData })
         .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
         .then(function (r) {
           if (!r.ok) {
