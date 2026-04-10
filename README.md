@@ -61,7 +61,15 @@ log_file: "load_forge.logs"
 2. Click **Run New Test**.
 3. Paste your **API Doc URL** — a publicly reachable OpenAPI 3.x or Swagger 2.0 spec (JSON or YAML).
 4. Optionally enter a **JWT token** if the spec endpoint or the API under test requires one.
-5. Set **workers**, **duration**, and **load profile**, then click **Start Test**.
+5. Set the load parameters and click **Start Test**:
+
+   - **Workers** — number of concurrent virtual users sending requests simultaneously. Start with `10` for a light test; use `50`–`200` for realistic load.
+   - **Duration** — how long the test runs. Accepts Go duration strings: `30s`, `2m`, `1h`, etc.
+   - **Load profile** — how traffic ramps up and behaves over time:
+     - `constant` — all workers start at once and run for the full duration. Good for a steady baseline benchmark.
+     - `ramp` — workers increase gradually from zero to the target count. Useful for finding the point where your API starts degrading without an instant shock.
+     - `step` — workers are added in fixed increments at regular intervals. Good for observing how latency and error rate change as load increases incrementally.
+     - `spike` — a small base load runs continuously with sudden bursts of extra workers injected at intervals. Useful for testing how quickly your API recovers after a surge.
 
 The app fetches the spec, extracts all endpoints, generates a load test config, and starts running immediately. Live logs appear on the home page. Past runs are listed under **History**.
 
