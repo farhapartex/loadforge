@@ -1,0 +1,44 @@
+{{define "content"}}
+<div class="history-page">
+
+  {{if not .Data}}
+  <div class="empty-state">
+    <p>No runs yet. Start a test from the home page.</p>
+  </div>
+  {{else}}
+  <div class="table-wrapper">
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th>Started</th>
+          <th>Spec URL</th>
+          <th>Duration</th>
+          <th>Status</th>
+          <th>Requests</th>
+          <th>Successes</th>
+          <th>Failures</th>
+          <th>Error Rate</th>
+          <th>RPS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Data}}
+        <tr>
+          <td class="col-time">{{.StartedAt}}</td>
+          <td class="col-url" title="{{.SpecURL}}">{{.SpecURL}}</td>
+          <td>{{.Duration}}</td>
+          <td><span class="status-badge status-{{.Status}}">{{.Status}}</span></td>
+          <td>{{.Requests}}</td>
+          <td>{{.Successes}}</td>
+          <td>{{.Failures}}</td>
+          <td>{{.ErrorRate}}</td>
+          <td>{{.RPS}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
+
+</div>
+{{end}}

@@ -26,6 +26,23 @@ func newRunStats() *RunStats {
 	return &RunStats{}
 }
 
+func (s *RunStats) recordStart(specURL string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.totalRuns++
+	s.lastStatus = "running"
+	s.lastRunAt = time.Now()
+	s.lastConfig = specURL
+	s.activeTests = 1
+}
+
+func (s *RunStats) recordDone(status string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastStatus = status
+	s.activeTests = 0
+}
+
 func (s *RunStats) snapshot() RunStatsSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

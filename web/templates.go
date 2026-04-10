@@ -26,7 +26,7 @@ func newTemplateCache() (*templateCache, error) {
 		return nil, fmt.Errorf("sub templates fs: %w", err)
 	}
 
-	pageNames := []string{"home"}
+	pageNames := []string{"home", "history"}
 	pages := make(map[string]*template.Template, len(pageNames))
 
 	for _, name := range pageNames {

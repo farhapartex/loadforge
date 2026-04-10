@@ -13,6 +13,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/logout", s.handleLogout)
 
 	s.mux.Handle("/api/logs/stream", s.requireAuth(http.HandlerFunc(s.logs.handleStream)))
+	s.mux.Handle("/api/run", s.requireAuth(http.HandlerFunc(s.handleRun)))
 
+	s.mux.Handle("/history", s.requireAuth(http.HandlerFunc(s.handleHistory)))
 	s.mux.Handle("/", s.requireAuth(http.HandlerFunc(s.handleHome)))
 }

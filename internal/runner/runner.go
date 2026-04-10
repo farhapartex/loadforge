@@ -25,7 +25,7 @@ func New() *Runner {
 	}
 }
 
-func (r *Runner) Start(cfg *config.Config, specURL string) error {
+func (r *Runner) Start(cfg *config.Config, specURL string, onDone func(status string)) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -47,7 +47,7 @@ func (r *Runner) Start(cfg *config.Config, specURL string) error {
 	log.Printf("Run started  id=%s spec=%s workers=%d duration=%s",
 		record.ID, specURL, cfg.Load.Workers, cfg.Load.Duration)
 
-	go r.execute(ctx, cfg, record)
+	go r.execute(ctx, cfg, record, onDone)
 
 	return nil
 }
@@ -69,7 +69,7 @@ func (r *Runner) Results() *ResultStore {
 	return r.results
 }
 
-func (r *Runner) execute(ctx context.Context, cfg *config.Config, record *RunRecord) {
+func (r *Runner) execute(ctx context.Context, cfg *config.Config, record *RunRecord, onDone func(string)) {
 	defer func() {
 		r.active.Store(false)
 		r.cancel = nil
@@ -115,6 +115,10 @@ func (r *Runner) execute(ctx context.Context, cfg *config.Config, record *RunRec
 	}
 
 	r.results.add(record)
+
+	if onDone != nil {
+		onDone(string(record.Status))
+	}
 }
 
 func (r *Runner) logMetricsTicks(ctx context.Context, ch <-chan loader.MetricsSnapshot) {

@@ -11,6 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/farhapartex/loadforge/internal/runner"
 )
 
 type Server struct {
@@ -19,6 +21,8 @@ type Server struct {
 	templates *templateCache
 	logs      *LogBroadcaster
 	stats     *RunStats
+	runner    *runner.Runner
+	openapi   *openapiClient
 	logFile   *os.File
 	mux       *http.ServeMux
 	http      *http.Server
@@ -49,6 +53,8 @@ func newServer(configPath string) (*Server, error) {
 		templates: tmplCache,
 		logs:      newLogBroadcaster(),
 		stats:     newRunStats(),
+		runner:    runner.New(),
+		openapi:   newOpenapiClient(),
 		logFile:   logFile,
 		mux:       mux,
 	}
