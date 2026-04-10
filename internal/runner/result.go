@@ -21,6 +21,9 @@ const (
 type RunRecord struct {
 	ID        string
 	SpecURL   string
+	Profile   string
+	Workers   int
+	Duration  string
 	StartedAt time.Time
 	EndedAt   time.Time
 	Status    RunStatus

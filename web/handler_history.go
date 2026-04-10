@@ -3,7 +3,6 @@ package web
 import (
 	"fmt"
 	"net/http"
-	"sort"
 	"time"
 
 	"github.com/farhapartex/loadforge/internal/loader"
@@ -11,16 +10,19 @@ import (
 )
 
 type historyRow struct {
-	ID         string
-	SpecURL    string
-	StartedAt  string
-	Duration   string
-	Status     string
-	Requests   int64
-	Successes  int64
-	Failures   int64
-	ErrorRate  string
-	RPS        string
+	ID        string
+	SpecURL   string
+	Profile   string
+	Workers   int
+	Duration  string
+	StartedAt string
+	Elapsed   string
+	Status    string
+	Requests  int64
+	Successes int64
+	Failures  int64
+	ErrorRate string
+	RPS       string
 }
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
@@ -30,10 +32,6 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	for _, rec := range records {
 		rows = append(rows, toHistoryRow(rec))
 	}
-
-	sort.Slice(rows, func(i, j int) bool {
-		return records[i].StartedAt.After(records[j].StartedAt)
-	})
 
 	s.templates.renderPage(w, "history", PageData{
 		Title:     "History",
@@ -45,9 +43,12 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 func toHistoryRow(rec *runner.RunRecord) historyRow {
 	row := historyRow{
-		ID:      rec.ID,
-		SpecURL: rec.SpecURL,
-		Status:  string(rec.Status),
+		ID:       rec.ID,
+		SpecURL:  rec.SpecURL,
+		Profile:  rec.Profile,
+		Workers:  rec.Workers,
+		Duration: rec.Duration,
+		Status:   string(rec.Status),
 	}
 
 	if !rec.StartedAt.IsZero() {
@@ -58,7 +59,7 @@ func toHistoryRow(rec *runner.RunRecord) historyRow {
 	if end.IsZero() {
 		end = time.Now()
 	}
-	row.Duration = end.Sub(rec.StartedAt).Round(time.Second).String()
+	row.Elapsed = end.Sub(rec.StartedAt).Round(time.Second).String()
 
 	if rec.Snapshot != nil {
 		snap := rec.Snapshot
@@ -67,6 +68,9 @@ func toHistoryRow(rec *runner.RunRecord) historyRow {
 		row.Failures = snap.TotalFailures
 		row.ErrorRate = formatRate(snap)
 		row.RPS = formatRPS(snap.RPS)
+	} else {
+		row.ErrorRate = "—"
+		row.RPS = "—"
 	}
 
 	return row

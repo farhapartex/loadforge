@@ -40,6 +40,9 @@ func (r *Runner) Start(cfg *config.Config, specURL string, onDone func(status st
 	record := &RunRecord{
 		ID:        newRunID(),
 		SpecURL:   specURL,
+		Profile:   cfg.Load.Profile,
+		Workers:   cfg.Load.Workers,
+		Duration:  cfg.Load.Duration,
 		StartedAt: time.Now(),
 		Status:    StatusRunning,
 	}

@@ -1,7 +1,20 @@
 {{define "content"}}
 <div class="quick-actions">
-  <button class="btn btn-primary" id="btn-run-test">Run New Test</button>
-  <a href="/history" class="btn btn-outline">View History</a>
+  <div class="quick-actions-left">
+    {{if eq .Data.ActiveTests 1}}
+    <span class="run-indicator">
+      <span class="run-dot"></span> Test running
+    </span>
+    {{end}}
+  </div>
+  <div class="quick-actions-right">
+    {{if eq .Data.ActiveTests 1}}
+    <button class="btn btn-danger" id="btn-stop-test">Stop Test</button>
+    {{else}}
+    <button class="btn btn-primary" id="btn-run-test">Run New Test</button>
+    {{end}}
+    <a href="/history" class="btn btn-outline">View History</a>
+  </div>
 </div>
 
 <div class="stats-grid">
@@ -11,7 +24,9 @@
   </div>
   <div class="stat-card">
     <div class="stat-label">Last Status</div>
-    <div class="stat-value stat-status-{{.Data.LastStatus}}">{{.Data.LastStatus}}</div>
+    <div class="stat-value">
+      <span class="status-badge status-{{.Data.LastStatus}}" data-stat="last-status">{{.Data.LastStatus}}</span>
+    </div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Last Run</div>
@@ -19,7 +34,7 @@
   </div>
   <div class="stat-card">
     <div class="stat-label">Active Tests</div>
-    <div class="stat-value">{{.Data.ActiveTests}}</div>
+    <div class="stat-value" data-stat="active-tests">{{.Data.ActiveTests}}</div>
   </div>
 </div>
 
@@ -45,29 +60,62 @@
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label for="input-api-doc-url">
-          API Doc URL <span class="required">*</span>
-        </label>
+        <label for="input-api-doc-url">API Doc URL <span class="required">*</span></label>
         <input
           type="url"
           id="input-api-doc-url"
-          name="api_doc_url"
+          name="spec_url"
           placeholder="https://api.example.com/openapi.json"
           required
         />
       </div>
       <div class="form-group">
         <label for="input-jwt-token">
-          API JWT Token
-          <span class="field-optional">(optional)</span>
+          API JWT Token <span class="field-optional">(optional)</span>
         </label>
         <input
           type="text"
           id="input-jwt-token"
-          name="jwt_token"
+          name="token"
           placeholder="eyJhbGciOiJIUzI1NiIs..."
         />
       </div>
+      <div class="form-divider"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="input-workers">Workers <span class="required">*</span></label>
+          <input
+            type="number"
+            id="input-workers"
+            name="workers"
+            min="1"
+            max="500"
+            value="10"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="input-duration">Duration <span class="required">*</span></label>
+          <input
+            type="text"
+            id="input-duration"
+            name="duration"
+            placeholder="30s, 2m, 1h"
+            value="30s"
+            required
+          />
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="input-profile">Load Profile <span class="required">*</span></label>
+        <select id="input-profile" name="profile">
+          <option value="constant" selected>Constant</option>
+          <option value="ramp">Ramp</option>
+          <option value="step">Step</option>
+          <option value="spike">Spike</option>
+        </select>
+      </div>
+      <div id="run-error" class="form-error" style="display:none"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="btn-modal-cancel">Cancel</button>

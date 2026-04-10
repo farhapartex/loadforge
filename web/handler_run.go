@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -19,8 +20,14 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRunStart(w http.ResponseWriter, r *http.Request) {
-	specURL := strings.TrimSpace(r.FormValue("spec_url"))
-	token := strings.TrimSpace(r.FormValue("token"))
+	specURL  := strings.TrimSpace(r.FormValue("spec_url"))
+	token    := strings.TrimSpace(r.FormValue("token"))
+	profile  := strings.TrimSpace(r.FormValue("profile"))
+	duration := strings.TrimSpace(r.FormValue("duration"))
+	workers  := 0
+	if w2, err := strconv.Atoi(r.FormValue("workers")); err == nil && w2 > 0 {
+		workers = w2
+	}
 
 	if specURL == "" {
 		writeJSON(w, http.StatusBadRequest, apiError("spec_url is required"))
@@ -59,6 +66,16 @@ func (s *Server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Generate failed: %v", err)
 		writeJSON(w, http.StatusBadRequest, apiError("failed to generate config: "+err.Error()))
 		return
+	}
+
+	if workers > 0 {
+		cfg.Load.Workers = workers
+	}
+	if duration != "" {
+		cfg.Load.Duration = duration
+	}
+	if profile != "" {
+		cfg.Load.Profile = profile
 	}
 
 	if err := s.runner.Start(cfg, specURL, s.stats.recordDone); err != nil {

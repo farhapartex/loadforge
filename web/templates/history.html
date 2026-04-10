@@ -12,7 +12,10 @@
         <tr>
           <th>Started</th>
           <th>Spec URL</th>
-          <th>Duration</th>
+          <th>Profile</th>
+          <th>Workers</th>
+          <th>Config Duration</th>
+          <th>Elapsed</th>
           <th>Status</th>
           <th>Requests</th>
           <th>Successes</th>
@@ -26,7 +29,10 @@
         <tr>
           <td class="col-time">{{.StartedAt}}</td>
           <td class="col-url" title="{{.SpecURL}}">{{.SpecURL}}</td>
+          <td>{{.Profile}}</td>
+          <td>{{.Workers}}</td>
           <td>{{.Duration}}</td>
+          <td>{{.Elapsed}}</td>
           <td><span class="status-badge status-{{.Status}}">{{.Status}}</span></td>
           <td>{{.Requests}}</td>
           <td>{{.Successes}}</td>
