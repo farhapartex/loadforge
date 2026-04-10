@@ -34,7 +34,7 @@ type Step struct {
 
 type Body struct {
 	Raw  string            `yaml:"raw"`
-	JSON interface{}       `yaml:"json"`
+	JSON any              `yaml:"json"`
 	Form map[string]string `yaml:"form"`
 }
 
@@ -53,7 +53,7 @@ type RequestOptions struct {
 
 type BasicAuth struct {
 	Username string `yaml:"username"`
-	Pasword  string `yaml:"password"`
+	Password string `yaml:"password"`
 }
 
 type HeaderAuth struct {
@@ -61,7 +61,7 @@ type HeaderAuth struct {
 	Value string `yaml:"value"`
 }
 
-// LoadConfig define how load is applied over time
+// LoadConfig defines how load is applied over time.
 type LoadConfig struct {
 	Profile     string        `yaml:"profile"`
 	Duration    string        `yaml:"duration"`
@@ -72,7 +72,6 @@ type LoadConfig struct {
 	MaxRequests int           `yaml:"max_requests"`
 }
 
-// Constant keeps a fixed number of workers for a the entire duration
 type Constant struct {
 	Workers  int    `yaml:"workers"`
 	Duration string `yaml:"duration"`
@@ -80,17 +79,16 @@ type Constant struct {
 }
 
 type RampUpConfig struct {
-	StartWorkers int    `yaml:"start_workers"` // workers at the beginning
-	EndWorkers   int    `yaml:"end_workers"`   // workers at the end
-	Duration     string `yaml:"duration"`      // how long to ramp up over
+	StartWorkers int    `yaml:"start_workers"`
+	EndWorkers   int    `yaml:"end_workers"`
+	Duration     string `yaml:"duration"`
 }
 
-// Spike runs at baseline, suddenly spikes then returns to baseline
 type StepConfig struct {
-	StartWorkers int    `yaml:"start_workers"` // initial worker count
-	StepSize     int    `yaml:"step_size"`     // how many workers to add per step
-	StepDuration string `yaml:"step_duration"` // how long each step lasts e.g. "30s"
-	MaxWorkers   int    `yaml:"max_workers"`   // cap
+	StartWorkers int    `yaml:"start_workers"`
+	StepSize     int    `yaml:"step_size"`
+	StepDuration string `yaml:"step_duration"`
+	MaxWorkers   int    `yaml:"max_workers"`
 }
 
 type SpikeConfig struct {
@@ -100,36 +98,54 @@ type SpikeConfig struct {
 	SpikeEvery    string `yaml:"spike_every"`
 }
 
-func Load(path string) (*Config, error) {
+// LoadFromFile reads a YAML config file from disk, parses and validates it.
+// Used by the CLI.
+func LoadFromFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse config file: %w", err)
+		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("Failed to parse config file: %w", err)
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("Invalid config: %w", err)
+		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
 	return &cfg, nil
 }
 
+// Default returns a base Config with sensible load defaults and no scenarios.
+// The web layer and OpenAPI generator use this as a starting point, populate
+// Scenarios and BaseURL, then call Validate before running.
+func Default() *Config {
+	return &Config{
+		Name:      "load-test",
+		BaseURL:   "",
+		Scenarios: []Scenario{},
+		Load: LoadConfig{
+			Profile:  "constant",
+			Duration: "30s",
+			Workers:  10,
+		},
+	}
+}
+
 func (c *Config) Validate() error {
 	if c.Name == "" {
-		return fmt.Errorf("Config must have a name")
+		return fmt.Errorf("config must have a name")
 	}
 
 	if len(c.Scenarios) == 0 {
-		return fmt.Errorf("Config must have at least one scenario")
+		return fmt.Errorf("config must have at least one scenario")
 	}
 
 	for idx, scenario := range c.Scenarios {
 		if len(scenario.Steps) == 0 {
-			return fmt.Errorf("Scenario[%d] %q must have at least one step", idx, scenario.Name)
+			return fmt.Errorf("scenario[%d] %q must have at least one step", idx, scenario.Name)
 		}
 
 		for jdx, step := range scenario.Steps {
@@ -140,20 +156,16 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.Load.Validate(); err != nil {
-		return fmt.Errorf("invalid load_profile: %w", err)
+		return fmt.Errorf("invalid load profile: %w", err)
 	}
 
 	return nil
 }
 
-func validateStep(scenarioIdx int, stepIdx int, step Step) error {
+func validateStep(scenarioIdx, stepIdx int, step Step) error {
 	validMethods := map[string]bool{
-		"GET":    true,
-		"POST":   true,
-		"PUT":    true,
-		"PATCH":  true,
-		"DELETE": true,
-		"HEAD":   true,
+		"GET": true, "POST": true, "PUT": true,
+		"PATCH": true, "DELETE": true, "HEAD": true,
 	}
 
 	if step.URL == "" {
@@ -161,7 +173,7 @@ func validateStep(scenarioIdx int, stepIdx int, step Step) error {
 	}
 
 	if step.Method == "" {
-		return fmt.Errorf("scenario[%d].step[%d] must have a url", scenarioIdx, stepIdx)
+		return fmt.Errorf("scenario[%d].step[%d] must have a method", scenarioIdx, stepIdx)
 	}
 
 	if !validMethods[step.Method] {
@@ -174,25 +186,24 @@ func validateStep(scenarioIdx int, stepIdx int, step Step) error {
 				scenarioIdx, stepIdx, step.Options.Timeout, err)
 		}
 	}
+
 	if step.Think != "" {
 		if _, err := time.ParseDuration(step.Think); err != nil {
 			return fmt.Errorf("scenario[%d].step[%d] has invalid think time %q: %w",
 				scenarioIdx, stepIdx, step.Think, err)
 		}
 	}
+
 	return nil
 }
 
 func (lc *LoadConfig) Validate() error {
 	validProfiles := map[string]bool{
-		"constant": true,
-		"ramp":     true,
-		"step":     true,
-		"spike":    true,
+		"constant": true, "ramp": true, "step": true, "spike": true,
 	}
 
 	if lc.Profile == "" {
-		lc.Profile = "constant" // sensible default
+		lc.Profile = "constant"
 	}
 
 	if !validProfiles[lc.Profile] {

@@ -1,0 +1,159 @@
+{{define "content"}}
+<div class="quick-actions">
+  <div class="quick-actions-left">
+    {{if eq .Data.ActiveTests 1}}
+    <span class="run-indicator">
+      <span class="run-dot"></span> Test running
+    </span>
+    {{end}}
+  </div>
+  <div class="quick-actions-right">
+    {{if eq .Data.ActiveTests 1}}
+    <button class="btn btn-danger" id="btn-stop-test">Stop Test</button>
+    {{else}}
+    <button class="btn btn-primary" id="btn-run-test">Run New Test</button>
+    {{end}}
+    <a href="/history" class="btn btn-outline">View History</a>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Runs</div>
+    <div class="stat-value">{{.Data.TotalRuns}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Last Status</div>
+    <div class="stat-value">
+      <span class="status-badge status-{{.Data.LastStatus}}" data-stat="last-status">{{.Data.LastStatus}}</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Last Run</div>
+    <div class="stat-value stat-secondary">{{.Data.LastRunAt}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active Tests</div>
+    <div class="stat-value" data-stat="active-tests">{{.Data.ActiveTests}}</div>
+  </div>
+</div>
+
+<div class="log-section">
+  <div class="log-header">
+    <span class="log-title">Activity Log</span>
+    <button class="btn btn-sm btn-outline" id="btn-clear-log">Clear</button>
+  </div>
+  <div class="log-output" id="log-output">
+    <div class="log-empty">Waiting for activity...</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-run-test" role="dialog" aria-modal="true" aria-labelledby="modal-run-title">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modal-run-title">Run New Test</h3>
+      <button class="modal-close" id="btn-modal-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="18" height="18">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Source selector -->
+      <div class="source-tabs" role="tablist">
+        <button
+          class="source-tab active"
+          role="tab"
+          aria-selected="true"
+          aria-controls="panel-openapi"
+          data-source="openapi"
+          id="tab-openapi"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          OpenAPI / Swagger
+        </button>
+        <button
+          class="source-tab"
+          role="tab"
+          aria-selected="false"
+          aria-controls="panel-postman"
+          data-source="postman"
+          id="tab-postman"
+          disabled
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Postman Collection
+          <span class="source-tab-badge">Soon</span>
+        </button>
+      </div>
+      <input type="hidden" id="input-source" name="source" value="openapi" />
+
+      <!-- OpenAPI panel -->
+      <div id="panel-openapi" class="source-panel" role="tabpanel" aria-labelledby="tab-openapi">
+        <div class="form-group">
+          <label for="input-api-doc-url">API Doc URL <span class="required">*</span></label>
+          <input
+            type="url"
+            id="input-api-doc-url"
+            name="spec_url"
+            placeholder="https://api.example.com/openapi.json"
+          />
+        </div>
+        <div class="form-group">
+          <label for="input-jwt-token">
+            API JWT Token <span class="field-optional">(optional)</span>
+          </label>
+          <input
+            type="text"
+            id="input-jwt-token"
+            name="token"
+            placeholder="eyJhbGciOiJIUzI1NiIs..."
+          />
+        </div>
+      </div>
+
+      <!-- Postman panel (reserved, hidden) -->
+      <div id="panel-postman" class="source-panel" role="tabpanel" aria-labelledby="tab-postman" hidden>
+        <div class="coming-soon-notice">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div>
+            <strong>Coming in a future release</strong>
+            <p>Upload a Postman Collection v2.1 JSON file to generate a load test automatically.</p>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="input-postman-file">Collection file <span class="required">*</span></label>
+          <input type="file" id="input-postman-file" name="postman_file" accept=".json" disabled />
+        </div>
+      </div>
+
+      <div class="form-divider"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="input-workers">Workers <span class="required">*</span></label>
+          <input type="number" id="input-workers" name="workers" min="1" max="500" value="10" required />
+        </div>
+        <div class="form-group">
+          <label for="input-duration">Duration <span class="required">*</span></label>
+          <input type="text" id="input-duration" name="duration" placeholder="30s, 2m, 1h" value="30s" required />
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="input-profile">Load Profile <span class="required">*</span></label>
+        <select id="input-profile" name="profile">
+          <option value="constant" selected>Constant</option>
+          <option value="ramp">Ramp</option>
+          <option value="step">Step</option>
+          <option value="spike">Spike</option>
+        </select>
+      </div>
+      <div id="run-error" class="form-error" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="btn-modal-cancel">Cancel</button>
+      <button class="btn btn-primary" id="btn-modal-submit">Start Test</button>
+    </div>
+  </div>
+</div>
+{{end}}
