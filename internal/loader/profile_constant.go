@@ -9,11 +9,9 @@ import (
 	"github.com/farhapartex/loadforge/internal/engine"
 )
 
-// runConstant runs a fixed number of workers for the configured duration
 func runConstant(ctx context.Context, cfg *config.Config, eng *engine.Engine, metrics *Metrics, onTick func(int)) {
 	numWorkers := cfg.Load.Workers
 
-	// If duration is set, cancel context after duration
 	if cfg.Load.Duration != "" {
 		duration, _ := time.ParseDuration(cfg.Load.Duration)
 		var cancel context.CancelFunc
@@ -39,7 +37,6 @@ func runConstant(ctx context.Context, cfg *config.Config, eng *engine.Engine, me
 		}()
 	}
 
-	// Handle max_requests stopping condition
 	if cfg.Load.MaxRequests > 0 {
 		go func() {
 			for {

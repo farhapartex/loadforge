@@ -15,9 +15,6 @@ type RunResult struct {
 	Metrics *Metrics
 }
 
-// Run executes a load test from an in-memory config.
-// It does not read from disk — callers are responsible for building cfg
-// (via config.LoadFromFile for the CLI, or via the OpenAPI generator for the web layer).
 func Run(
 	ctx context.Context,
 	cfg *config.Config,

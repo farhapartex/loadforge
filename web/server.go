@@ -53,7 +53,7 @@ func newServer(configPath string) (*Server, error) {
 		templates: tmplCache,
 		logs:      newLogBroadcaster(),
 		stats:     newRunStats(),
-		runner:  runner.New(),
+		runner:  runner.New(cfg.HistoryFile),
 		loaders: newLoaderRegistry(),
 		logFile:   logFile,
 		mux:       mux,

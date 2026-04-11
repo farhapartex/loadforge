@@ -7,7 +7,6 @@ import (
 	"github.com/farhapartex/loadforge/internal/engine"
 )
 
-// Metrics holds aggregated stats from all workers during a test run
 type Metrics struct {
 	mu sync.RWMutex
 

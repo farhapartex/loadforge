@@ -26,7 +26,7 @@
       </thead>
       <tbody>
         {{range .Data}}
-        <tr>
+        <tr class="history-row" data-id="{{.ID}}" title="Click to view details">
           <td class="col-time">{{.StartedAt}}</td>
           <td class="col-url" title="{{.SpecURL}}">{{.SpecURL}}</td>
           <td>{{.Profile}}</td>
@@ -46,5 +46,22 @@
   </div>
   {{end}}
 
+</div>
+
+<!-- Run detail modal -->
+<div class="modal-overlay" id="modal-run-detail" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h3 class="modal-title" id="detail-modal-title">Run Details</h3>
+      <button class="modal-close" id="btn-detail-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="18" height="18">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body detail-body" id="detail-body">
+      <div class="detail-loading">Loading...</div>
+    </div>
+  </div>
 </div>
 {{end}}

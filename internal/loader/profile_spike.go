@@ -9,7 +9,6 @@ import (
 	"github.com/farhapartex/loadforge/internal/engine"
 )
 
-// runSpike runs base workers continuously, periodically spiking to spike_workers
 func runSpike(ctx context.Context, cfg *config.Config, eng *engine.Engine, metrics *Metrics, onTick func(int)) {
 	spikeCfg := cfg.Load.Spike
 	totalDuration, _ := time.ParseDuration(cfg.Load.Duration)
@@ -25,8 +24,6 @@ func runSpike(ctx context.Context, cfg *config.Config, eng *engine.Engine, metri
 		activeCount int
 	)
 
-	// launchWorkers starts n workers with their own cancellable context
-	// returns a cancel func that stops only these workers
 	launchWorkers := func(n int) context.CancelFunc {
 		workerCtx, workerCancel := context.WithCancel(ctx)
 		mu.Lock()
@@ -49,10 +46,8 @@ func runSpike(ctx context.Context, cfg *config.Config, eng *engine.Engine, metri
 		return workerCancel
 	}
 
-	// Launch base workers permanently
 	launchWorkers(spikeCfg.BaseWorkers)
 
-	// Spike periodically
 	spikeTimer := time.NewTicker(spikeEvery)
 	defer spikeTimer.Stop()
 
@@ -61,10 +56,7 @@ func runSpike(ctx context.Context, cfg *config.Config, eng *engine.Engine, metri
 		case <-ctx.Done():
 			goto done
 		case <-spikeTimer.C:
-			// Launch spike workers
 			spikeCancel := launchWorkers(spikeCfg.SpikeWorkers)
-
-			// After spike duration, cancel the spike workers
 			go func() {
 				select {
 				case <-ctx.Done():

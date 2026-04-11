@@ -2,12 +2,12 @@ package openapi
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/farhapartex/loadforge/internal/config"
 	"github.com/farhapartex/loadforge/internal/specloader"
 )
 
-// OpenAPILoader implements specloader.Loader for OpenAPI 3.x / Swagger 2.x specs.
 type OpenAPILoader struct{}
 
 func NewLoader() *OpenAPILoader { return &OpenAPILoader{} }
@@ -55,7 +55,14 @@ func (l *OpenAPILoader) Load(input specloader.Input) (*config.Config, error) {
 		opts.Duration = input.Duration
 	}
 
-	cfg, err := Generate(ops, spec.BaseURL, opts)
+	baseURL := spec.BaseURL
+	if baseURL == "" && input.URL != "" {
+		if u, err := url.Parse(input.URL); err == nil && u.Host != "" {
+			baseURL = u.Scheme + "://" + u.Host
+		}
+	}
+
+	cfg, err := Generate(ops, baseURL, opts)
 	if err != nil {
 		return nil, fmt.Errorf("generate config: %w", err)
 	}

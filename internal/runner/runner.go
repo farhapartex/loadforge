@@ -19,9 +19,9 @@ type Runner struct {
 	results *ResultStore
 }
 
-func New() *Runner {
+func New(historyFile string) *Runner {
 	return &Runner{
-		results: newResultStore(),
+		results: newResultStore(historyFile),
 	}
 }
 
@@ -50,7 +50,7 @@ func (r *Runner) Start(cfg *config.Config, specURL string, onDone func(status st
 	log.Printf("Run started  id=%s spec=%s workers=%d duration=%s",
 		record.ID, specURL, cfg.Load.Workers, cfg.Load.Duration)
 
-	go r.execute(ctx, cfg, record, onDone)
+	go r.execute(ctx, cancel, cfg, record, onDone)
 
 	return nil
 }
@@ -72,8 +72,9 @@ func (r *Runner) Results() *ResultStore {
 	return r.results
 }
 
-func (r *Runner) execute(ctx context.Context, cfg *config.Config, record *RunRecord, onDone func(string)) {
+func (r *Runner) execute(ctx context.Context, cancel context.CancelFunc, cfg *config.Config, record *RunRecord, onDone func(string)) {
 	defer func() {
+		cancel() // stop logMetricsTicks and broadcastMetrics on natural completion
 		r.active.Store(false)
 		r.cancel = nil
 	}()
@@ -112,6 +113,7 @@ func (r *Runner) execute(ctx context.Context, cfg *config.Config, record *RunRec
 
 	if result != nil && result.Metrics != nil {
 		snap := result.Metrics.Snapshot()
+		record.Percentiles = ComputePercentiles(&snap) // computes p50-p99 and clears raw latencies
 		record.Snapshot = &snap
 		log.Printf("Results  requests=%d successes=%d failures=%d rps=%.2f",
 			snap.TotalRequests, snap.TotalSuccesses, snap.TotalFailures, snap.RPS)
@@ -137,6 +139,9 @@ func (r *Runner) logMetricsTicks(ctx context.Context, ch <-chan loader.MetricsSn
 			case snap := <-ch:
 				log.Printf("Progress  requests=%d rps=%.2f errors=%d",
 					snap.TotalRequests, snap.RPS, snap.TotalFailures)
+				for msg, count := range snap.Errors {
+					log.Printf("  error [%dx] %s", count, msg)
+				}
 			default:
 			}
 		}

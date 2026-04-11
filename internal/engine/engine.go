@@ -11,7 +11,6 @@ import (
 
 const MaxBodyRead = 1 * 1024 * 1024 // 1 MB
 
-// Result holds the outcome of a single HTTP request execuation
 type Result struct {
 	StepName   string
 	Method     string
@@ -36,7 +35,6 @@ func New(cfg *config.Config) *Engine {
 	return &Engine{cfg: cfg}
 }
 
-// ExecuteStep runs a single Step from a scenario and returns the Result
 func (e *Engine) ExecuteStep(step config.Step) *Result {
 	result := &Result{
 		StepName: step.Name,

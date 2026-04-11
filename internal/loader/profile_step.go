@@ -9,7 +9,6 @@ import (
 	"github.com/farhapartex/loadforge/internal/engine"
 )
 
-// runStep increases workers in defined steps at regular intervals
 func runStep(ctx context.Context, cfg *config.Config, eng *engine.Engine, metrics *Metrics, onTick func(int)) {
 	stepCfg := cfg.Load.Step
 	stepDuration, _ := time.ParseDuration(stepCfg.StepDuration)
@@ -44,12 +43,10 @@ func runStep(ctx context.Context, cfg *config.Config, eng *engine.Engine, metric
 		onTick(activeCount)
 	}
 
-	// Launch initial batch
 	if stepCfg.StartWorkers > 0 {
 		launchWorkers(stepCfg.StartWorkers)
 	}
 
-	// Step up on each tick until max workers reached
 	ticker := time.NewTicker(stepDuration)
 	defer ticker.Stop()
 

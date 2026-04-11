@@ -35,18 +35,15 @@ func (w *worker) pickScenario() config.Scenario {
 		return scenarios[0]
 	}
 
-	// Check if any weights are defined
 	totalWeight := 0
 	for _, s := range scenarios {
 		totalWeight += s.Weight
 	}
 
-	// No weights defined — pick randomly
 	if totalWeight == 0 {
 		return scenarios[rand.Intn(len(scenarios))]
 	}
 
-	// Weighted random selection
 	r := rand.Intn(totalWeight)
 	cumulative := 0
 	for _, s := range scenarios {
@@ -70,7 +67,6 @@ func (w *worker) executeScenario(ctx context.Context, scenario config.Scenario) 
 		result := w.eng.ExecuteStep(step)
 		w.metrics.record(result)
 
-		// Apply think time if defined
 		if step.Think != "" {
 			thinkDuration, err := time.ParseDuration(step.Think)
 			if err == nil {

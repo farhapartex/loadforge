@@ -61,7 +61,6 @@ type HeaderAuth struct {
 	Value string `yaml:"value"`
 }
 
-// LoadConfig defines how load is applied over time.
 type LoadConfig struct {
 	Profile     string        `yaml:"profile"`
 	Duration    string        `yaml:"duration"`
@@ -98,8 +97,6 @@ type SpikeConfig struct {
 	SpikeEvery    string `yaml:"spike_every"`
 }
 
-// LoadFromFile reads a YAML config file from disk, parses and validates it.
-// Used by the CLI.
 func LoadFromFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -118,9 +115,6 @@ func LoadFromFile(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// Default returns a base Config with sensible load defaults and no scenarios.
-// The web layer and OpenAPI generator use this as a starting point, populate
-// Scenarios and BaseURL, then call Validate before running.
 func Default() *Config {
 	return &Config{
 		Name:      "load-test",

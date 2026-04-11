@@ -190,7 +190,11 @@
   var clearBtn = document.getElementById('btn-clear-log');
   if (clearBtn) {
     clearBtn.addEventListener('click', function () {
-      logOutput.innerHTML = '';
+      fetch('/api/logs', { method: 'DELETE' })
+        .then(function (res) {
+          if (res.ok) logOutput.innerHTML = '';
+        })
+        .catch(function () {});
     });
   }
 
@@ -237,3 +241,125 @@
     });
   };
 })();
+
+// ── History detail modal ──────────────────────────────────────
+(function () {
+  'use strict';
+
+  var detailOverlay = document.getElementById('modal-run-detail');
+  var detailBody    = document.getElementById('detail-body');
+  var btnClose      = document.getElementById('btn-detail-close');
+
+  if (!detailOverlay) return;
+
+  function openDetail() {
+    detailOverlay.classList.add('open');
+  }
+
+  function closeDetail() {
+    detailOverlay.classList.remove('open');
+    if (detailBody) detailBody.innerHTML = '<div class="detail-loading">Loading...</div>';
+  }
+
+  if (btnClose) btnClose.addEventListener('click', closeDetail);
+
+  detailOverlay.addEventListener('click', function (e) {
+    if (e.target === detailOverlay) closeDetail();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && detailOverlay.classList.contains('open')) closeDetail();
+  });
+
+  document.querySelectorAll('.history-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+      var id = row.dataset.id;
+      if (!id) return;
+      openDetail();
+      fetch('/api/history?id=' + encodeURIComponent(id))
+        .then(function (res) { return res.json(); })
+        .then(function (d) { renderDetail(d); })
+        .catch(function () {
+          detailBody.innerHTML = '<p class="detail-error">Failed to load run details.</p>';
+        });
+    });
+  });
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function renderDetail(d) {
+    var html = '';
+
+    // Overview
+    html += '<div class="detail-section">';
+    html += '<h4 class="detail-section-title">Overview</h4>';
+    html += '<div class="detail-grid">';
+    html += detailCell('Status', '<span class="status-badge status-' + esc(d.Status) + '">' + esc(d.Status) + '</span>');
+    html += detailCell('Spec URL', '<span class="detail-url" title="' + esc(d.SpecURL) + '">' + esc(d.SpecURL) + '</span>');
+    html += detailCell('Profile', esc(d.Profile));
+    html += detailCell('Workers', esc(d.Workers));
+    html += detailCell('Config Duration', esc(d.Duration));
+    html += detailCell('Started', esc(d.StartedAt));
+    html += detailCell('Ended', esc(d.EndedAt) || '—');
+    html += detailCell('Elapsed', esc(d.Elapsed));
+    if (d.Error) html += detailCell('Error', '<span class="detail-err">' + esc(d.Error) + '</span>');
+    html += '</div></div>';
+
+    // Metrics
+    html += '<div class="detail-section">';
+    html += '<h4 class="detail-section-title">Metrics</h4>';
+    html += '<div class="detail-grid">';
+    html += detailCell('Total Requests', esc(d.Requests));
+    html += detailCell('Successes', esc(d.Successes));
+    html += detailCell('Failures', esc(d.Failures));
+    html += detailCell('Error Rate', esc(d.ErrorRate));
+    html += detailCell('Avg RPS', esc(d.RPS));
+    html += detailCell('Data Received', esc(d.DataBytes));
+    html += '</div></div>';
+
+    // Latency
+    if (d.P50 || d.P90 || d.P95 || d.P99) {
+      html += '<div class="detail-section">';
+      html += '<h4 class="detail-section-title">Latency Percentiles</h4>';
+      html += '<div class="detail-grid">';
+      html += detailCell('p50', esc(d.P50) || '—');
+      html += detailCell('p90', esc(d.P90) || '—');
+      html += detailCell('p95', esc(d.P95) || '—');
+      html += detailCell('p99', esc(d.P99) || '—');
+      html += '</div></div>';
+    }
+
+    // Status codes
+    if (d.StatusCodes && d.StatusCodes.length > 0) {
+      html += '<div class="detail-section">';
+      html += '<h4 class="detail-section-title">Status Codes</h4>';
+      html += '<table class="detail-table"><thead><tr><th>Code</th><th>Count</th></tr></thead><tbody>';
+      d.StatusCodes.forEach(function (sc) {
+        html += '<tr><td>HTTP ' + esc(sc.Code) + '</td><td>' + esc(sc.Count) + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+
+    // Errors
+    if (d.Errors && d.Errors.length > 0) {
+      html += '<div class="detail-section">';
+      html += '<h4 class="detail-section-title">Errors</h4>';
+      html += '<table class="detail-table"><thead><tr><th>Count</th><th>Message</th></tr></thead><tbody>';
+      d.Errors.forEach(function (e) {
+        html += '<tr><td>' + esc(e.Count) + '</td><td class="detail-err-msg">' + esc(e.Message) + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+
+    detailBody.innerHTML = html;
+  }
+
+  function detailCell(label, value) {
+    return '<div class="detail-cell"><span class="detail-label">' + label + '</span><span class="detail-value">' + value + '</span></div>';
+  }
+}());

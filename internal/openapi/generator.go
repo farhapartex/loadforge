@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/farhapartex/loadforge/internal/config"
 )
@@ -44,6 +45,8 @@ func Generate(ops []Operation, baseURL string, opts GenerateOptions) (*config.Co
 	if len(cfg.Scenarios) == 0 {
 		return nil, fmt.Errorf("could not build any scenarios from extracted operations")
 	}
+
+	applyProfileDefaults(&cfg.Load)
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("generated config is invalid: %w", err)
@@ -144,6 +147,80 @@ func firstTag(tags []string) string {
 		return tags[0]
 	}
 	return "default"
+}
+
+func applyProfileDefaults(lc *config.LoadConfig) {
+	totalDur, err := time.ParseDuration(lc.Duration)
+	if err != nil {
+		totalDur = 30 * time.Second
+	}
+	workers := lc.Workers
+	if workers <= 0 {
+		workers = 10
+	}
+
+	switch lc.Profile {
+	case "ramp":
+		if lc.RampUp == nil {
+			rampDur := totalDur / 2
+			if rampDur < time.Second {
+				rampDur = time.Second
+			}
+			lc.RampUp = &config.RampUpConfig{
+				StartWorkers: 1,
+				EndWorkers:   workers,
+				Duration:     rampDur.String(),
+			}
+		}
+
+	case "step":
+		if lc.Step == nil {
+			stepSize := workers / 5
+			if stepSize < 1 {
+				stepSize = 1
+			}
+			steps := workers / stepSize
+			if steps < 1 {
+				steps = 1
+			}
+			stepDur := totalDur / time.Duration(steps)
+			if stepDur < time.Second {
+				stepDur = time.Second
+			}
+			lc.Step = &config.StepConfig{
+				StartWorkers: 1,
+				StepSize:     stepSize,
+				StepDuration: stepDur.String(),
+				MaxWorkers:   workers,
+			}
+		}
+
+	case "spike":
+		if lc.Spike == nil {
+			base := workers / 4
+			if base < 1 {
+				base = 1
+			}
+			spikeDur := 10 * time.Second
+			spikeEvery := 30 * time.Second
+			if totalDur < spikeEvery*2 {
+				spikeEvery = totalDur / 3
+				spikeDur = spikeEvery / 3
+			}
+			if spikeDur < time.Second {
+				spikeDur = time.Second
+			}
+			if spikeEvery < time.Second {
+				spikeEvery = time.Second
+			}
+			lc.Spike = &config.SpikeConfig{
+				BaseWorkers:   base,
+				SpikeWorkers:  workers,
+				SpikeDuration: spikeDur.String(),
+				SpikeEvery:    spikeEvery.String(),
+			}
+		}
+	}
 }
 
 func buildQueryString(params []Param) string {

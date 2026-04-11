@@ -64,7 +64,6 @@ func buildClient(opts *config.RequestOptions) *http.Client {
 		Transport: transport,
 	}
 
-	// handle redirect policy
 	if !followRedirects {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse

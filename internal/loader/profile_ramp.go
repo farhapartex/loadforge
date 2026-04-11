@@ -9,7 +9,6 @@ import (
 	"github.com/farhapartex/loadforge/internal/engine"
 )
 
-// runRamp gradually increases workers from StartWorkers to EndWorkers
 func runRamp(ctx context.Context, cfg *config.Config, eng *engine.Engine, metrics *Metrics, onTick func(int)) {
 	rampCfg := cfg.Load.RampUp
 	rampDuration, _ := time.ParseDuration(rampCfg.Duration)
@@ -51,12 +50,10 @@ func runRamp(ctx context.Context, cfg *config.Config, eng *engine.Engine, metric
 		onTick(activeCount)
 	}
 
-	// Launch starting batch
 	if startWorkers > 0 {
 		launchWorkers(startWorkers)
 	}
 
-	// Calculate how often to add a worker during ramp
 	if workerDiff > 0 {
 		interval := rampDuration / time.Duration(workerDiff)
 		ticker := time.NewTicker(interval)
@@ -78,7 +75,6 @@ done:
 	<-ctx.Done()
 	wg.Wait()
 
-	// Cancel all individual worker contexts on cleanup
 	mu.Lock()
 	for _, c := range cancelFuncs {
 		c()

@@ -8,8 +8,6 @@ import (
 	"github.com/farhapartex/loadforge/internal/specloader"
 )
 
-// loaderRegistry maps source-type names to their Loader implementations.
-// Add new source types here as they are implemented.
 type loaderRegistry struct {
 	loaders map[string]specloader.Loader
 }

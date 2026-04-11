@@ -7,8 +7,6 @@ import (
 	"github.com/farhapartex/loadforge/internal/specloader"
 )
 
-// PostmanLoader implements specloader.Loader for Postman collection v2.1 files.
-// This is a reserved stub — full implementation is planned for a future release.
 type PostmanLoader struct{}
 
 func NewLoader() *PostmanLoader { return &PostmanLoader{} }

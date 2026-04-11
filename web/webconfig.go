@@ -10,11 +10,12 @@ import (
 )
 
 type WebConfig struct {
-	Addr       string `yaml:"addr"`
-	Username   string `yaml:"username"`
-	Password   string `yaml:"password"`
-	SessionTTL string `yaml:"session_ttl"`
-	LogFile    string `yaml:"log_file"`
+	Addr        string `yaml:"addr"`
+	Username    string `yaml:"username"`
+	Password    string `yaml:"password"`
+	SessionTTL  string `yaml:"session_ttl"`
+	LogFile     string `yaml:"log_file"`
+	HistoryFile string `yaml:"history_file"`
 }
 
 func (c *WebConfig) parsedSessionTTL() time.Duration {
@@ -44,10 +45,11 @@ func loadWebConfig(path string) (*WebConfig, error) {
 
 func defaultWebConfig() *WebConfig {
 	return &WebConfig{
-		Addr:       ":8080",
-		Username:   "admin",
-		Password:   "admin",
-		SessionTTL: "24h",
-		LogFile:    "load_forge.logs",
+		Addr:        ":8080",
+		Username:    "admin",
+		Password:    "admin",
+		SessionTTL:  "24h",
+		LogFile:     "load_forge.logs",
+		HistoryFile: "load_forge_history.json",
 	}
 }

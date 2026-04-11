@@ -29,12 +29,14 @@ type LogBroadcaster struct {
 	mu      sync.Mutex
 	clients map[chan LogEntry]struct{}
 	buffer  []LogEntry
+	resetCh chan struct{}
 }
 
 func newLogBroadcaster() *LogBroadcaster {
 	return &LogBroadcaster{
 		clients: make(map[chan LogEntry]struct{}),
 		buffer:  make([]LogEntry, 0, logBufferSize),
+		resetCh: make(chan struct{}, 1),
 	}
 }
 
@@ -74,9 +76,17 @@ func (lb *LogBroadcaster) publish(entry LogEntry) {
 	lb.mu.Unlock()
 }
 
-// tailFile opens path (creating it if needed), seeks to the current end so
-// existing content is skipped, then polls every tailPollInterval for new lines
-// and broadcasts them. Stops when ctx is cancelled.
+func (lb *LogBroadcaster) clear() {
+	lb.mu.Lock()
+	lb.buffer = lb.buffer[:0]
+	lb.mu.Unlock()
+
+	select {
+	case lb.resetCh <- struct{}{}:
+	default:
+	}
+}
+
 func (lb *LogBroadcaster) tailFile(ctx context.Context, path string) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0644)
 	if err != nil {
@@ -93,6 +103,11 @@ func (lb *LogBroadcaster) tailFile(ctx context.Context, path string) {
 		select {
 		case <-ticker.C:
 			lb.drainLines(reader)
+		case <-lb.resetCh:
+			if _, err := f.Seek(0, 0); err != nil {
+				log.Printf("WARN tailFile: seek failed: %v", err)
+			}
+			reader.Reset(f)
 		case <-ctx.Done():
 			return
 		}
@@ -112,7 +127,6 @@ func (lb *LogBroadcaster) drainLines(r *bufio.Reader) {
 	}
 }
 
-// parseLogLine handles the format written by log.Ltime: "15:04:05 message"
 func parseLogLine(line string) LogEntry {
 	if len(line) > 9 && line[8] == ' ' {
 		msg := line[9:]
@@ -123,6 +137,21 @@ func parseLogLine(line string) LogEntry {
 		Level:     detectLevel(line),
 		Message:   line,
 	}
+}
+
+func (s *Server) handleLogClear(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := os.Truncate(s.cfg.LogFile, 0); err != nil {
+		writeJSON(w, http.StatusInternalServerError, apiError("failed to clear log file: "+err.Error()))
+		return
+	}
+
+	s.logs.clear()
+	writeJSON(w, http.StatusOK, map[string]string{"status": "cleared"})
 }
 
 func (lb *LogBroadcaster) handleStream(w http.ResponseWriter, r *http.Request) {
@@ -161,11 +190,31 @@ func (lb *LogBroadcaster) handleStream(w http.ResponseWriter, r *http.Request) {
 func detectLevel(msg string) string {
 	up := strings.ToUpper(msg)
 	switch {
-	case strings.Contains(up, "ERROR") || strings.Contains(up, "FATAL"):
+	case containsWord(up, "ERROR") || containsWord(up, "FATAL"):
 		return "ERROR"
-	case strings.Contains(up, "WARN"):
+	case containsWord(up, "WARN"):
 		return "WARN"
 	default:
 		return "INFO"
 	}
+}
+
+func containsWord(s, word string) bool {
+	for i := 0; i <= len(s)-len(word); i++ {
+		if s[i:i+len(word)] != word {
+			continue
+		}
+		if i > 0 && isWordChar(s[i-1]) {
+			continue
+		}
+		if end := i + len(word); end < len(s) && isWordChar(s[end]) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func isWordChar(c byte) bool {
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'
 }
