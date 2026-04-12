@@ -242,6 +242,198 @@
   };
 })();
 
+// ── SLA Thresholds settings page ─────────────────────────────
+(function () {
+  'use strict';
+
+  var tbody         = document.getElementById('threshold-tbody');
+  var btnAdd        = document.getElementById('btn-add-threshold');
+  var btnSave       = document.getElementById('btn-save-thresholds');
+  var saveStatus    = document.getElementById('save-status');
+
+  if (!tbody) return;
+
+  var METRICS = [
+    { value: 'p50_latency',    label: 'P50 Latency',    unit: 'ms'    },
+    { value: 'p90_latency',    label: 'P90 Latency',    unit: 'ms'    },
+    { value: 'p95_latency',    label: 'P95 Latency',    unit: 'ms'    },
+    { value: 'p99_latency',    label: 'P99 Latency',    unit: 'ms'    },
+    { value: 'avg_latency',    label: 'Avg Latency',    unit: 'ms'    },
+    { value: 'max_latency',    label: 'Max Latency',    unit: 'ms'    },
+    { value: 'error_rate',     label: 'Error Rate',     unit: '%'     },
+    { value: 'success_rate',   label: 'Success Rate',   unit: '%'     },
+    { value: 'rps',            label: 'RPS',            unit: 'req/s' },
+    { value: 'total_requests', label: 'Total Requests', unit: ''      },
+    { value: 'total_errors',   label: 'Total Errors',   unit: ''      },
+  ];
+
+  var OPERATORS = [
+    { value: 'less_than',            label: '<'  },
+    { value: 'less_than_or_equal',   label: '≤'  },
+    { value: 'greater_than',         label: '>'  },
+    { value: 'greater_than_or_equal',label: '≥'  },
+    { value: 'equal',                label: '='  },
+  ];
+
+  function unitForMetric(metric) {
+    var m = METRICS.find(function (x) { return x.value === metric; });
+    return m ? m.unit : '';
+  }
+
+  function buildSelect(options, selectedValue, className) {
+    var sel = document.createElement('select');
+    sel.className = className;
+    options.forEach(function (opt) {
+      var el = document.createElement('option');
+      el.value = opt.value;
+      el.textContent = opt.label;
+      if (opt.value === selectedValue) el.selected = true;
+      sel.appendChild(el);
+    });
+    return sel;
+  }
+
+  function createThresholdRow(assertion) {
+    var tr = document.createElement('tr');
+    tr.className = 'threshold-row' + (assertion.enabled ? '' : ' disabled-row');
+
+    var tdEnabled = document.createElement('td');
+    tdEnabled.className = 'td-enabled';
+    var checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'threshold-checkbox';
+    checkbox.checked = assertion.enabled;
+    checkbox.addEventListener('change', function () {
+      tr.classList.toggle('disabled-row', !checkbox.checked);
+    });
+    tdEnabled.appendChild(checkbox);
+
+    var tdMetric = document.createElement('td');
+    var metricSel = buildSelect(METRICS, assertion.metric, 'threshold-select threshold-metric');
+    metricSel.addEventListener('change', function () {
+      unitCell.textContent = unitForMetric(metricSel.value);
+    });
+    tdMetric.appendChild(metricSel);
+
+    var tdOperator = document.createElement('td');
+    tdOperator.appendChild(buildSelect(OPERATORS, assertion.operator, 'threshold-select threshold-operator'));
+
+    var tdValue = document.createElement('td');
+    var valueInput = document.createElement('input');
+    valueInput.type = 'number';
+    valueInput.className = 'threshold-input';
+    valueInput.value = assertion.value;
+    valueInput.min = '0';
+    valueInput.step = 'any';
+    tdValue.appendChild(valueInput);
+
+    var unitCell = document.createElement('td');
+    unitCell.className = 'threshold-unit';
+    unitCell.textContent = unitForMetric(assertion.metric);
+
+    var tdRemove = document.createElement('td');
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'threshold-remove';
+    removeBtn.title = 'Remove';
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', function () { tr.remove(); });
+    tdRemove.appendChild(removeBtn);
+
+    tr.appendChild(tdEnabled);
+    tr.appendChild(tdMetric);
+    tr.appendChild(tdOperator);
+    tr.appendChild(tdValue);
+    tr.appendChild(unitCell);
+    tr.appendChild(tdRemove);
+
+    return tr;
+  }
+
+  function renderThresholds(assertions) {
+    tbody.innerHTML = '';
+    if (!assertions || assertions.length === 0) {
+      var emptyRow = document.createElement('tr');
+      emptyRow.className = 'threshold-empty-row';
+      var emptyCell = document.createElement('td');
+      emptyCell.colSpan = 6;
+      emptyCell.textContent = 'No thresholds configured. Click "+ Add Threshold" to add one.';
+      emptyRow.appendChild(emptyCell);
+      tbody.appendChild(emptyRow);
+      return;
+    }
+    assertions.forEach(function (a) {
+      tbody.appendChild(createThresholdRow(a));
+    });
+  }
+
+  function collectThresholds() {
+    var rows = tbody.querySelectorAll('.threshold-row');
+    var result = [];
+    rows.forEach(function (tr) {
+      var enabled  = tr.querySelector('.threshold-checkbox').checked;
+      var metric   = tr.querySelector('.threshold-metric').value;
+      var operator = tr.querySelector('.threshold-operator').value;
+      var value    = parseFloat(tr.querySelector('.threshold-input').value) || 0;
+      result.push({ metric: metric, operator: operator, value: value, enabled: enabled });
+    });
+    return result;
+  }
+
+  function showSaveStatus(msg, isError) {
+    if (!saveStatus) return;
+    saveStatus.textContent = msg;
+    saveStatus.className = 'save-status ' + (isError ? 'status-error' : 'status-ok');
+    setTimeout(function () {
+      saveStatus.textContent = '';
+      saveStatus.className = 'save-status';
+    }, 3000);
+  }
+
+  fetch('/api/assertions')
+    .then(function (r) { return r.json(); })
+    .then(function (data) { renderThresholds(data); })
+    .catch(function () { renderThresholds([]); });
+
+  if (btnAdd) {
+    btnAdd.addEventListener('click', function () {
+      var emptyRow = tbody.querySelector('.threshold-empty-row');
+      if (emptyRow) emptyRow.remove();
+      tbody.appendChild(createThresholdRow({
+        metric: 'p95_latency', operator: 'less_than', value: 500, enabled: true,
+      }));
+    });
+  }
+
+  if (btnSave) {
+    btnSave.addEventListener('click', function () {
+      btnSave.disabled = true;
+      btnSave.textContent = 'Saving…';
+
+      var payload = collectThresholds();
+
+      fetch('/api/assertions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+        .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+        .then(function (r) {
+          if (r.ok) {
+            showSaveStatus('Changes saved successfully.', false);
+          } else {
+            showSaveStatus(r.body.error || 'Save failed.', true);
+          }
+        })
+        .catch(function () { showSaveStatus('Network error. Please try again.', true); })
+        .finally(function () {
+          btnSave.disabled = false;
+          btnSave.textContent = 'Save Changes';
+        });
+    });
+  }
+}());
+
 // ── History detail modal ──────────────────────────────────────
 (function () {
   'use strict';
@@ -352,6 +544,26 @@
       html += '<table class="detail-table"><thead><tr><th>Count</th><th>Message</th></tr></thead><tbody>';
       d.Errors.forEach(function (e) {
         html += '<tr><td>' + esc(e.Count) + '</td><td class="detail-err-msg">' + esc(e.Message) + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+
+    // SLA Thresholds
+    if (d.AssertionResults && d.AssertionResults.length > 0) {
+      var badgeClass = d.AssertionsPassed ? 'all-passed' : 'has-failures';
+      var badgeText  = d.AssertionsPassed ? 'All thresholds passed' : 'Some thresholds failed';
+      html += '<div class="detail-section">';
+      html += '<h4 class="detail-section-title">SLA Thresholds &nbsp;<span class="assertion-summary-badge ' + badgeClass + '">' + badgeText + '</span></h4>';
+      html += '<table class="detail-table"><thead><tr><th>Metric</th><th>Expected</th><th>Actual</th><th>Result</th></tr></thead><tbody>';
+      d.AssertionResults.forEach(function (ar) {
+        var resultClass = ar.Passed ? 'assertion-pass' : 'assertion-fail';
+        var resultText  = ar.Passed ? 'PASS' : 'FAIL';
+        html += '<tr>';
+        html += '<td>' + esc(ar.Metric) + '</td>';
+        html += '<td>' + esc(ar.Expected) + '</td>';
+        html += '<td>' + esc(ar.Actual) + '</td>';
+        html += '<td><span class="' + resultClass + '">' + resultText + '</span></td>';
+        html += '</tr>';
       });
       html += '</tbody></table></div>';
     }

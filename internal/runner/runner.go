@@ -113,8 +113,11 @@ func (r *Runner) execute(ctx context.Context, cancel context.CancelFunc, cfg *co
 
 	if result != nil && result.Metrics != nil {
 		snap := result.Metrics.Snapshot()
-		record.Percentiles = ComputePercentiles(&snap) // computes p50-p99 and clears raw latencies
+		record.Percentiles = ComputePercentiles(&snap)
 		record.Snapshot = &snap
+
+		record.AssertionResults, record.AssertionsPassed = evaluateAssertions(cfg.Assertions, &snap, record.Percentiles)
+
 		log.Printf("Results  requests=%d successes=%d failures=%d rps=%.2f",
 			snap.TotalRequests, snap.TotalSuccesses, snap.TotalFailures, snap.RPS)
 	}

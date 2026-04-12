@@ -1053,3 +1053,211 @@ a {
   color: var(--color-text-secondary);
   word-break: break-all;
 }
+
+/* ── Settings / Threshold page ───────────────────────────────── */
+
+.settings-page {
+  max-width: 820px;
+}
+
+.settings-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.settings-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-card-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.settings-card-subtitle {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.settings-card-body {
+  overflow-x: auto;
+}
+
+.settings-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-top: 1px solid var(--color-border);
+  background: #f8fafc;
+}
+
+.settings-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── Threshold table ─────────────────────────────────────────── */
+
+.threshold-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.threshold-table thead th {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+  background: #f8fafc;
+}
+
+.threshold-table .th-enabled  { width: 64px;  text-align: center; }
+.threshold-table .th-operator { width: 130px; }
+.threshold-table .th-value    { width: 110px; }
+.threshold-table .th-unit     { width: 60px;  }
+.threshold-table .th-remove   { width: 40px;  }
+
+.threshold-row td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.threshold-row:last-child td {
+  border-bottom: none;
+}
+
+.threshold-row.disabled-row {
+  opacity: 0.5;
+}
+
+.threshold-empty-row td {
+  padding: 32px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  border-bottom: none;
+}
+
+/* Enabled checkbox */
+.th-enabled,
+.td-enabled {
+  text-align: center;
+}
+
+.threshold-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+/* Selects and inputs inside threshold rows */
+.threshold-select,
+.threshold-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--color-text);
+  background: #fff;
+  appearance: none;
+  transition: border-color 0.15s;
+}
+
+.threshold-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 26px;
+}
+
+.threshold-select:focus,
+.threshold-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.threshold-unit {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Remove button */
+.threshold-remove {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.threshold-remove:hover {
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger-border);
+  color: var(--color-danger-text);
+}
+
+/* Save status message */
+.save-status {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.save-status.status-ok    { color: #166534; }
+.save-status.status-error { color: #991b1b; }
+
+/* Assertion result badges in history detail */
+.assertion-pass { color: #166534; font-weight: 600; }
+.assertion-fail { color: #991b1b; font-weight: 600; }
+
+.assertion-summary-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.assertion-summary-badge.all-passed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.assertion-summary-badge.has-failures {
+  background: #fee2e2;
+  color: #991b1b;
+}

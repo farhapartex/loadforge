@@ -1,0 +1,42 @@
+{{define "content"}}
+<div class="settings-page">
+
+  <div class="settings-card">
+    <div class="settings-card-header">
+      <div class="settings-card-header-left">
+        <span class="settings-card-title">SLA Thresholds</span>
+        <span class="settings-card-subtitle">Evaluated automatically after every test run. Green = pass, red = fail.</span>
+      </div>
+    </div>
+
+    <div class="settings-card-body">
+      <table class="threshold-table">
+        <thead>
+          <tr>
+            <th class="th-enabled">Enabled</th>
+            <th class="th-metric">Metric</th>
+            <th class="th-operator">Operator</th>
+            <th class="th-value">Value</th>
+            <th class="th-unit">Unit</th>
+            <th class="th-remove"></th>
+          </tr>
+        </thead>
+        <tbody id="threshold-tbody">
+          <tr class="threshold-empty-row">
+            <td colspan="6">Loading thresholds...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="settings-card-footer">
+      <button type="button" class="btn btn-outline btn-sm" id="btn-add-threshold">+ Add Threshold</button>
+      <div class="settings-footer-right">
+        <span class="save-status" id="save-status"></span>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-save-thresholds">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{{end}}

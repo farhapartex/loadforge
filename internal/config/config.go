@@ -9,10 +9,26 @@ import (
 )
 
 type Config struct {
-	Name      string     `yaml:"name"`
-	BaseURL   string     `yaml:"base_url"`
-	Scenarios []Scenario `yaml:"scenarios"`
-	Load      LoadConfig `yaml:"load"`
+	Name       string      `yaml:"name"`
+	BaseURL    string      `yaml:"base_url"`
+	Scenarios  []Scenario  `yaml:"scenarios"`
+	Load       LoadConfig  `yaml:"load"`
+	Assertions []Assertion `yaml:"assertions,omitempty"`
+}
+
+type Assertion struct {
+	Metric   string  `yaml:"metric"   json:"metric"`
+	Operator string  `yaml:"operator" json:"operator"`
+	Value    float64 `yaml:"value"    json:"value"`
+	Enabled  bool    `yaml:"enabled"  json:"enabled"`
+}
+
+type AssertionResult struct {
+	Metric    string  `yaml:"metric"    json:"metric"`
+	Operator  string  `yaml:"operator"  json:"operator"`
+	Threshold float64 `yaml:"threshold" json:"threshold"`
+	Actual    float64 `yaml:"actual"    json:"actual"`
+	Passed    bool    `yaml:"passed"    json:"passed"`
 }
 
 type Scenario struct {

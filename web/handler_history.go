@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/farhapartex/loadforge/internal/loader"
@@ -27,28 +28,30 @@ type historyRow struct {
 }
 
 type runDetail struct {
-	ID          string
-	SpecURL     string
-	Profile     string
-	Workers     int
-	Duration    string
-	StartedAt   string
-	EndedAt     string
-	Elapsed     string
-	Status      string
-	Error       string
-	Requests    int64
-	Successes   int64
-	Failures    int64
-	ErrorRate   string
-	RPS         string
-	DataBytes   string
-	P50         string
-	P90         string
-	P95         string
-	P99         string
-	StatusCodes []statusCodeRow
-	Errors      []errorRow
+	ID               string
+	SpecURL          string
+	Profile          string
+	Workers          int
+	Duration         string
+	StartedAt        string
+	EndedAt          string
+	Elapsed          string
+	Status           string
+	Error            string
+	Requests         int64
+	Successes        int64
+	Failures         int64
+	ErrorRate        string
+	RPS              string
+	DataBytes        string
+	P50              string
+	P90              string
+	P95              string
+	P99              string
+	StatusCodes      []statusCodeRow
+	Errors           []errorRow
+	AssertionResults []assertionDetailRow
+	AssertionsPassed bool
 }
 
 type statusCodeRow struct {
@@ -59,6 +62,13 @@ type statusCodeRow struct {
 type errorRow struct {
 	Message string
 	Count   int64
+}
+
+type assertionDetailRow struct {
+	Metric    string
+	Expected  string
+	Actual    string
+	Passed    bool
 }
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +196,65 @@ func toRunDetail(rec *runner.RunRecord) runDetail {
 		d.P99 = p.P99.Round(time.Millisecond).String()
 	}
 
+	d.AssertionsPassed = rec.AssertionsPassed
+	for _, ar := range rec.AssertionResults {
+		d.AssertionResults = append(d.AssertionResults, assertionDetailRow{
+			Metric:   formatMetricLabel(ar.Metric),
+			Expected: formatExpected(ar.Operator, ar.Threshold, ar.Metric),
+			Actual:   formatActualValue(ar.Actual, ar.Metric),
+			Passed:   ar.Passed,
+		})
+	}
+
 	return d
+}
+
+func formatMetricLabel(metric string) string {
+	labels := map[string]string{
+		"p50_latency":    "P50 Latency",
+		"p90_latency":    "P90 Latency",
+		"p95_latency":    "P95 Latency",
+		"p99_latency":    "P99 Latency",
+		"avg_latency":    "Avg Latency",
+		"max_latency":    "Max Latency",
+		"error_rate":     "Error Rate",
+		"success_rate":   "Success Rate",
+		"rps":            "RPS",
+		"total_requests": "Total Requests",
+		"total_errors":   "Total Errors",
+	}
+	if label, ok := labels[metric]; ok {
+		return label
+	}
+	return strings.ReplaceAll(metric, "_", " ")
+}
+
+func formatExpected(operator string, threshold float64, metric string) string {
+	ops := map[string]string{
+		"less_than":            "<",
+		"less_than_or_equal":   "≤",
+		"greater_than":         ">",
+		"greater_than_or_equal":"≥",
+		"equal":                "=",
+	}
+	op := operator
+	if sym, ok := ops[operator]; ok {
+		op = sym
+	}
+	return fmt.Sprintf("%s %s", op, formatActualValue(threshold, metric))
+}
+
+func formatActualValue(value float64, metric string) string {
+	switch {
+	case strings.HasSuffix(metric, "_latency"):
+		return fmt.Sprintf("%.0fms", value)
+	case strings.HasSuffix(metric, "_rate"):
+		return fmt.Sprintf("%.2f%%", value)
+	case metric == "rps":
+		return fmt.Sprintf("%.2f req/s", value)
+	default:
+		return fmt.Sprintf("%.0f", value)
+	}
 }
 
 func formatRate(snap *loader.MetricsSnapshot) string {
