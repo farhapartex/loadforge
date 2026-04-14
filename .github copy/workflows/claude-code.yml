@@ -1,0 +1,23 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    branches: [main, stage, dev]       # run for PRs targeting main or stage or dev
+    types: [opened, synchronize, reopened]
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: ""        # 👈 disables @claude requirement
+          label_trigger: ""         # 👈 disables label requirement

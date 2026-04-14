@@ -135,7 +135,24 @@ jobs:
           git tag "$TAG"
           git push origin "$TAG"
 
+          cat > release-notes.md << 'RELEASE_NOTES_EOF'
+          ## LoadForge
+
+          ### CLI Installation (Linux / macOS)
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/farhapartex/loadforge/main/scripts/install.sh | sudo bash
+          ```
+
+          Then start the web UI:
+          ```bash
+          loadforge-web
+          ```
+
+          ### Manual download
+          Pick the binary for your OS and architecture from the assets below.
+          RELEASE_NOTES_EOF
+
           gh release create "$TAG" \
             --title "LoadForge ${TAG}" \
-            --generate-notes \
+            --notes-file release-notes.md \
             dist/*

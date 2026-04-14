@@ -1,0 +1,530 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, staging]
+
+env:
+  GO_VERSION: '1.26'
+
+jobs:
+  quality-checks:
+    name: Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Format check
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code is not formatted. Run: go fmt ./..."
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build check
+        run: go build ./...
+
+      - name: Security vulnerability check
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run unit tests
+        run: go test -race -short ./...
+
+  # ── Windows Installer Tests ────────────────────────────────────────────────
+  # Only runs on PRs targeting main/staging and on direct pushes to release
+  # branches, to avoid spending Windows runner minutes on every feature push.
+
+  build-windows-installer:
+    name: Build Windows Installer (${{ matrix.agent_type }})
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' ||
+      contains(fromJSON('["main","stage","prod_gcp"]'), github.ref_name)
+    strategy:
+      fail-fast: false
+      matrix:
+        agent_type: [network, api, fullstack]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Install packaging tools
+        run: sudo apt-get install -y zip nsis dpkg-dev rpm
+
+      - name: Make scripts executable
+        run: chmod +x scripts/build-release.sh scripts/build-installers.sh
+
+      - name: Build release (cross-compiles all platforms + creates installers)
+        run: make release AGENT_TYPE=${{ matrix.agent_type }}
+
+      - name: Upload Windows universal .zip installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-${{ matrix.agent_type }}
+          path: dist/${{ matrix.agent_type }}/virtualsme-pentest-agent-${{ matrix.agent_type }}-windows.zip
+          retention-days: 1
+
+      - name: Upload Linux universal .deb installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installer-${{ matrix.agent_type }}
+          path: dist/${{ matrix.agent_type }}/virtualsme-pentest-agent-${{ matrix.agent_type }}-linux.deb
+          retention-days: 1
+
+  test-windows-installer:
+    name: Test Windows Installer (${{ matrix.agent_type }})
+    runs-on: windows-latest
+    needs: build-windows-installer
+    if: |
+      github.event_name == 'pull_request' ||
+      contains(fromJSON('["main","stage","prod_gcp"]'), github.ref_name)
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        agent_type: [network, api, fullstack]
+
+    steps:
+      - name: Download Windows .zip installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer-${{ matrix.agent_type }}
+          path: installer
+
+      - name: Extract and run agent installer (skip tool install in CI)
+        # In CI we only run pentest-agent-setup.exe (copies binary + registers service).
+        # 1-install-tools.bat installs Go/Nmap/Nuclei/Amass via Chocolatey — too slow for CI.
+        shell: powershell
+        run: |
+          $zip = Get-ChildItem "installer\*.zip" | Select-Object -First 1
+          Write-Output "Extracting: $($zip.FullName)"
+          Expand-Archive -Path $zip.FullName -DestinationPath "installer\extracted" -Force
+
+          $exe = Get-ChildItem "installer\extracted\pentest-agent-setup.exe" -ErrorAction Stop
+          Write-Output "Installing: $($exe.FullName)"
+          $proc = Start-Process -FilePath $exe.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($proc.ExitCode -ne 0) {
+            Write-Error "pentest-agent-setup.exe exited with code $($proc.ExitCode)"
+            exit 1
+          }
+
+      - name: Wait for agent service to initialise
+        shell: powershell
+        run: |
+          Write-Output "Waiting 20 s for the Windows service to start..."
+          Start-Sleep -Seconds 20
+
+      - name: Test http://localhost:9080 is accessible
+        shell: powershell
+        run: |
+          $maxAttempts = 6
+          $success = $false
+          for ($i = 1; $i -le $maxAttempts; $i++) {
+            try {
+              $resp = Invoke-WebRequest -Uri "http://localhost:9080" `
+                        -UseBasicParsing -TimeoutSec 10
+              if ($resp.StatusCode -eq 200) {
+                Write-Output "OK: http://localhost:9080 returned HTTP 200"
+                $success = $true
+                break
+              }
+              Write-Output "Attempt $i/$maxAttempts - unexpected status: $($resp.StatusCode)"
+            } catch {
+              Write-Output "Attempt $i/$maxAttempts - $($_.Exception.Message)"
+            }
+            Start-Sleep -Seconds 5
+          }
+          if (-not $success) {
+            Write-Error "Agent not reachable at http://localhost:9080 after $maxAttempts attempts"
+            exit 1
+          }
+
+      - name: Show service status
+        if: always()
+        shell: cmd
+        run: sc query virtualsme-pentest-agent
+
+      - name: Collect agent logs on failure
+        if: failure()
+        shell: powershell
+        run: |
+          $logFile = "$env:PROGRAMDATA\VirtualSME\PentestAgent\data\agent.log"
+          if (Test-Path $logFile) {
+            Write-Output "=== Last 100 lines of agent.log ==="
+            Get-Content $logFile | Select-Object -Last 100
+          } else {
+            Write-Output "Log not found at: $logFile"
+          }
+          Write-Output ""
+          Write-Output "=== Windows Event Log (Application, last 20 entries) ==="
+          Get-EventLog -LogName Application -Newest 20 -ErrorAction SilentlyContinue |
+            Where-Object { $_.Source -like "*virtualsme*" -or $_.Source -like "*pentest*" } |
+            Format-List TimeGenerated, Source, EntryType, Message
+
+      - name: Cleanup — stop and remove service
+        if: always()
+        shell: cmd
+        run: |
+          sc stop virtualsme-pentest-agent >nul 2>&1
+          sc delete virtualsme-pentest-agent >nul 2>&1
+          echo Cleanup complete.
+
+  # ── Linux Installer Tests ──────────────────────────────────────────────────
+
+  test-linux-installer:
+    name: Test Linux Installer (${{ matrix.agent_type }})
+    runs-on: ubuntu-latest
+    needs: build-windows-installer
+    if: |
+      github.event_name == 'pull_request' ||
+      contains(fromJSON('["main","stage","prod_gcp"]'), github.ref_name)
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        agent_type: [network, api, fullstack]
+
+    steps:
+      - name: Download Linux .deb installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-installer-${{ matrix.agent_type }}
+          path: installer
+
+      - name: Install .deb package
+        run: |
+          deb=$(ls installer/*.deb | head -1)
+          echo "Installing: $deb"
+          sudo dpkg -i "$deb"
+
+      - name: Wait for agent service to initialise
+        run: |
+          echo "Waiting 10 s for the systemd service to start..."
+          sleep 10
+
+      - name: Test http://localhost:9080 is accessible
+        run: |
+          max_attempts=6
+          success=false
+          for i in $(seq 1 $max_attempts); do
+            status=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 10 http://localhost:9080 || true)
+            if [ "$status" = "200" ]; then
+              echo "OK: http://localhost:9080 returned HTTP 200"
+              success=true
+              break
+            fi
+            echo "Attempt $i/$max_attempts - status: $status"
+            sleep 5
+          done
+          if [ "$success" != "true" ]; then
+            echo "ERROR: Agent not reachable at http://localhost:9080 after $max_attempts attempts"
+            exit 1
+          fi
+
+      - name: Show service status
+        if: always()
+        run: systemctl status virtualsme-pentest-agent || true
+
+      - name: Collect agent logs on failure
+        if: failure()
+        run: |
+          log_file="/var/lib/virtualsme/pentest-agent/data/agent.log"
+          if [ -f "$log_file" ]; then
+            echo "=== Last 100 lines of agent.log ==="
+            tail -n 100 "$log_file"
+          else
+            echo "Log not found at: $log_file"
+          fi
+          echo ""
+          echo "=== journald logs ==="
+          journalctl -u virtualsme-pentest-agent --no-pager -n 50 || true
+
+      - name: Cleanup - remove .deb package
+        if: always()
+        run: |
+          sudo apt-get remove -y virtualsme-pentest-agent 2>/dev/null || \
+            sudo dpkg -r virtualsme-pentest-agent 2>/dev/null || true
+          sudo systemctl daemon-reload 2>/dev/null || true
+          echo "Cleanup complete."
+
+  # ── macOS .pkg Build ───────────────────────────────────────────────────────
+  # Builds the click-through .pkg installer on a real macOS runner (pkgbuild /
+  # productbuild are macOS-only tools).  macos-latest = ARM64 Apple Silicon,
+  # so we compile and package the arm64 binary here.
+
+  build-macos-pkg:
+    name: Build macOS .pkg (${{ matrix.agent_type }})
+    runs-on: macos-latest
+    if: |
+      github.event_name == 'pull_request' ||
+      contains(fromJSON('["main","stage","prod_gcp"]'), github.ref_name)
+    strategy:
+      fail-fast: false
+      matrix:
+        agent_type: [network, api, fullstack]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Make scripts executable
+        run: chmod +x scripts/build-release.sh scripts/build-installers.sh
+
+      - name: Build macOS amd64 and arm64 binaries
+        run: |
+          mkdir -p dist/${{ matrix.agent_type }}
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+          GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+          BUILD_TIME=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+          GO_VERSION=$(go version | awk '{print $3}')
+          MODULE="github.com/virtualfusion/virtualsme-be-pentest-agent"
+          LDFLAGS="-s -w \
+            -X '${MODULE}/internal/constants.Version=${VERSION}' \
+            -X '${MODULE}/internal/constants.GitCommit=${GIT_COMMIT}' \
+            -X '${MODULE}/internal/constants.BuildTime=${BUILD_TIME}' \
+            -X '${MODULE}/internal/constants.GoVersion=${GO_VERSION}' \
+            -X '${MODULE}/internal/constants.AgentType=${{ matrix.agent_type }}' \
+            -X '${MODULE}/internal/constants.APIEndpoint=https://stage-backend-pentest.virtualsme.me' \
+            -X '${MODULE}/internal/constants.WSEndpoint=wss://stage-backend-pentest.virtualsme.me/api/v1/ws/agent'"
+          for ARCH in amd64 arm64; do
+            GOOS=darwin GOARCH=${ARCH} CGO_ENABLED=0 \
+              go build -trimpath -ldflags "${LDFLAGS}" \
+              -o "dist/${{ matrix.agent_type }}/pentest-agent-macos-${ARCH}" \
+              ./cmd/agent
+            echo "  Built macos/${ARCH}"
+          done
+
+      - name: Build macOS universal .pkg
+        run: |
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+          AGENT_TYPE=${{ matrix.agent_type }} VERSION=${VERSION} ./scripts/build-installers.sh
+
+      - name: Upload macOS universal .pkg
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-pkg-${{ matrix.agent_type }}
+          path: dist/${{ matrix.agent_type }}/virtualsme-pentest-agent-${{ matrix.agent_type }}-macos.pkg
+          retention-days: 1
+
+  # ── macOS .pkg Install Test ────────────────────────────────────────────────
+
+  test-macos-pkg:
+    name: Test macOS .pkg (${{ matrix.agent_type }})
+    runs-on: macos-latest
+    needs: build-macos-pkg
+    if: |
+      github.event_name == 'pull_request' ||
+      contains(fromJSON('["main","stage","prod_gcp"]'), github.ref_name)
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        agent_type: [network, api, fullstack]
+
+    steps:
+      - name: Download macOS .pkg artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-pkg-${{ matrix.agent_type }}
+          path: installer
+
+      - name: Install .pkg
+        run: |
+          PKG=$(ls installer/*.pkg | head -1)
+          echo "Installing: ${PKG}"
+          sudo installer -pkg "${PKG}" -target /
+
+      - name: Wait for LaunchDaemon to start
+        run: |
+          echo "Waiting 15 s for the LaunchDaemon to start..."
+          sleep 15
+
+      - name: Test http://localhost:9080 is accessible
+        run: |
+          max_attempts=6
+          success=false
+          for i in $(seq 1 $max_attempts); do
+            status=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 10 http://localhost:9080 || true)
+            if [ "$status" = "200" ]; then
+              echo "OK: http://localhost:9080 returned HTTP 200"
+              success=true
+              break
+            fi
+            echo "Attempt $i/$max_attempts - status: $status"
+            sleep 5
+          done
+          if [ "$success" != "true" ]; then
+            echo "ERROR: Agent not reachable at http://localhost:9080 after $max_attempts attempts"
+            exit 1
+          fi
+
+      - name: Show service status
+        if: always()
+        run: launchctl list com.virtualsme.pentest-agent || true
+
+      - name: Collect agent logs on failure
+        if: failure()
+        run: |
+          log_file="/var/log/virtualsme-pentest-agent.log"
+          if [ -f "$log_file" ]; then
+            echo "=== Last 100 lines of agent log ==="
+            tail -n 100 "$log_file"
+          else
+            echo "Log not found at: $log_file"
+          fi
+
+      - name: Cleanup — unload service and remove installed files
+        if: always()
+        run: |
+          PLIST="/Library/LaunchDaemons/com.virtualsme.pentest-agent.plist"
+          MACOS_MAJOR="$(sw_vers -productVersion | cut -d. -f1)"
+          if [[ "${MACOS_MAJOR}" -ge 13 ]]; then
+            sudo launchctl bootout system "${PLIST}" 2>/dev/null || true
+            sudo launchctl disable "system/com.virtualsme.pentest-agent" 2>/dev/null || true
+          else
+            sudo launchctl unload -w "${PLIST}" 2>/dev/null || true
+          fi
+          sudo rm -f "${PLIST}"
+          sudo rm -f /usr/local/bin/pentest-agent
+          sudo rm -rf "/Library/Application Support/VirtualSME/PentestAgent"
+          sudo rm -rf "/Library/Preferences/com.virtualsme.pentest-agent"
+          sudo rm -rf "/usr/local/share/virtualsme-pentest-agent"
+          sudo rm -f /var/log/virtualsme-pentest-agent.log
+          echo "Cleanup complete."
+
+  # ── Gate job ───────────────────────────────────────────────────────────────
+
+  all-checks-passed:
+    name: All Checks Passed
+    runs-on: ubuntu-latest
+    needs: [quality-checks, unit-tests, test-windows-installer, test-linux-installer, test-macos-pkg]
+    if: always()
+
+    steps:
+      - name: Check all jobs
+        run: |
+          if [ "${{ needs.quality-checks.result }}" != "success" ] ||
+             [ "${{ needs.unit-tests.result }}" != "success" ]; then
+            echo "One or more core checks failed"
+            exit 1
+          fi
+
+          # Installer tests only run on PRs / release branches.
+          # Treat 'skipped' as passing so feature-branch pushes are not blocked.
+          WIN="${{ needs.test-windows-installer.result }}"
+          if [ "${WIN}" != "success" ] && [ "${WIN}" != "skipped" ]; then
+            echo "Windows installer test failed (result: ${WIN})"
+            exit 1
+          fi
+
+          LINUX="${{ needs.test-linux-installer.result }}"
+          if [ "${LINUX}" != "success" ] && [ "${LINUX}" != "skipped" ]; then
+            echo "Linux installer test failed (result: ${LINUX})"
+            exit 1
+          fi
+
+          MACOS_PKG="${{ needs.test-macos-pkg.result }}"
+          if [ "${MACOS_PKG}" != "success" ] && [ "${MACOS_PKG}" != "skipped" ]; then
+            echo "macOS .pkg installer test failed (result: ${MACOS_PKG})"
+            exit 1
+          fi
+
+          echo "All checks passed successfully!"
