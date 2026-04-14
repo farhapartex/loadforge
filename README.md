@@ -76,83 +76,6 @@ Open `http://localhost:8080` in your browser. Default credentials: `admin` / `ad
 
 Paste an OpenAPI or Swagger spec URL, set your load parameters, and click **Start Test**. Live logs stream to the dashboard. Past runs appear under **History**.
 
-### CLI
-
-```bash
-# Run a scenario file
-loadforge run my-scenario.yaml
-
-# Override workers and duration at runtime
-loadforge run my-scenario.yaml --workers 50 --duration 2m
-
-# Inject variables
-loadforge run my-scenario.yaml --var base_url=https://api.example.com
-
-# Load variables from a .env file
-loadforge run my-scenario.yaml --env-file .env
-
-# Disable the terminal UI (plain output, useful in CI)
-loadforge run my-scenario.yaml --no-ui
-
-# Validate a scenario without running it
-loadforge validate my-scenario.yaml
-
-# Check installed version
-loadforge version
-```
-
----
-
-## Scenario File
-
-LoadForge scenarios are plain YAML files you can commit alongside your code.
-
-```yaml
-name: user-api-test
-base_url: https://api.example.com
-
-load:
-  profile: ramp
-  duration: 2m
-  ramp_up:
-    start_workers: 5
-    end_workers: 50
-    duration: 30s
-
-scenarios:
-  - name: create-and-fetch-user
-    weight: 1
-    steps:
-      - name: create user
-        method: POST
-        url: /users
-        headers:
-          Content-Type: application/json
-        body:
-          json:
-            name: "Test User"
-            email: "test@example.com"
-        auth:
-          bearer: "your-token-here"
-
-      - name: get users
-        method: GET
-        url: /users
-        think: 500ms
-
-assertions:
-  - metric: p95_latency
-    operator: less_than
-    value: 500
-    enabled: true
-  - metric: error_rate
-    operator: less_than
-    value: 1
-    enabled: true
-```
-
----
-
 ## Load Profiles
 
 | Profile | Use case |
@@ -172,43 +95,6 @@ Assertions let you define SLA thresholds that automatically mark a test as passe
 
 **Available operators:** `less_than`, `less_than_or_equal`, `greater_than`, `greater_than_or_equal`, `equal`
 
----
-
-## Web UI Configuration
-
-The web UI reads its configuration from `~/.loadforge/web.yml`. You can edit this file to change the address, credentials, or session settings.
-
-```yaml
-addr: ":8080"
-username: "admin"
-password: "admin"
-session_ttl: "24h"
-log_file: "/Users/you/.loadforge/load_forge.logs"
-history_file: "/Users/you/.loadforge/load_forge_history.json"
-```
-
-To change your password securely, use the **Settings** page in the web UI — the new password is stored as a bcrypt hash.
-
----
-
-## Building from Source
-
-Requires Go 1.26+.
-
-```bash
-git clone https://github.com/farhapartex/loadforge.git
-cd loadforge
-
-# Build CLI
-make build          # → ./bin/loadforge
-
-# Build web UI server
-make build-web      # → ./bin/loadforge-web
-
-# Run directly without building
-make run ARGS="run my-scenario.yaml"
-make run-web
-```
 
 ---
 
