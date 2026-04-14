@@ -1,98 +1,228 @@
-# loadforge
+# LoadForge
 
-HTTP load testing tool with a browser-based UI and CLI.
+> Developer-first HTTP load testing — run from the terminal or a browser-based UI.
+
+LoadForge is an open-source HTTP load testing tool built for developers and QA engineers who want to stress-test their APIs without fighting complex configuration or expensive SaaS platforms. Write a simple YAML scenario, point it at your API, and LoadForge hammers it with concurrent workers while giving you live metrics in a clean terminal UI or a browser dashboard.
 
 ---
 
-## Build
+## Why LoadForge?
+
+Most load testing tools are either too heavy (JMeter, Gatling) or too limited (ab, wrk). LoadForge sits in the middle:
+
+- **Zero dependencies** — a single binary, no JVM, no Node, no Docker required
+- **Two interfaces** — use the CLI for scripts and CI pipelines, or the web UI for interactive testing
+- **YAML-first** — define your entire test scenario in a readable YAML file that lives in your repo
+- **OpenAPI / Swagger support** — point at an API spec URL and LoadForge generates and runs the scenario for you
+- **Multiple load profiles** — constant, ramp, step, and spike traffic patterns out of the box
+- **Assertions & SLA thresholds** — define pass/fail criteria and catch regressions automatically
+- **History tracking** — every run is persisted so you can compare results over time
+
+---
+
+## Features
+
+| Feature | Description |
+|---|---|
+| **CLI load testing** | Run scenarios from YAML files with a live terminal UI |
+| **Web UI** | Browser-based dashboard to trigger, monitor, and review tests |
+| **OpenAPI / Swagger import** | Auto-generate scenarios from OpenAPI 3.x and Swagger 2.0 specs |
+| **HAR file support** | Convert or replay browser HAR recordings as load tests |
+| **Load profiles** | `constant`, `ramp`, `step`, `spike` — choose how traffic behaves |
+| **Assertions** | Define SLA thresholds (p95 latency, error rate, RPS) with pass/fail results |
+| **Auth support** | Basic auth, Bearer tokens, and custom header auth per request step |
+| **Variable injection** | Pass variables via `--var` flags or a `.env` file |
+| **History** | Persistent run history with per-request breakdown |
+| **Password protection** | Secure the web UI with bcrypt-hashed credentials |
+| **Multi-platform** | Linux, macOS, and Windows — amd64 and arm64 |
+
+---
+
+## Installation
+
+### Linux / macOS (recommended)
 
 ```bash
-# CLI tool
-make build
-# → ./bin/loadforge
-
-# Web UI server
-make build-web
-# → ./bin/loadforge-web
+curl -fsSL https://raw.githubusercontent.com/farhapartex/loadforge/main/scripts/install.sh | sudo bash
 ```
+
+This installs both `loadforge` (CLI) and `loadforge-web` (web UI server) to `/usr/local/bin/` and creates `~/.loadforge/` with a default configuration.
+
+### Manual download
+
+Download the binaries for your platform from the [latest release](https://github.com/farhapartex/loadforge/releases/latest) and place them in your `$PATH`.
 
 ---
 
-## Run
+## Uninstallation
+
+```bash
+sudo loadforge --uninstall
+```
+
+This removes both binaries from `/usr/local/bin/` and deletes the `~/.loadforge/` data directory.
+
+---
+
+## Quick Start
 
 ### Web UI
 
 ```bash
-./bin/loadforge-web
+loadforge-web
 ```
 
-Opens at `http://localhost:8080`. Default login: `admin` / `admin`.
+Open `http://localhost:8080` in your browser. Default credentials: `admin` / `admin`.
 
-To customise the address, credentials, or log file, create a `web.yml` alongside the binary:
+Paste an OpenAPI or Swagger spec URL, set your load parameters, and click **Start Test**. Live logs stream to the dashboard. Past runs appear under **History**.
+
+### CLI
+
+```bash
+# Run a scenario file
+loadforge run my-scenario.yaml
+
+# Override workers and duration at runtime
+loadforge run my-scenario.yaml --workers 50 --duration 2m
+
+# Inject variables
+loadforge run my-scenario.yaml --var base_url=https://api.example.com
+
+# Load variables from a .env file
+loadforge run my-scenario.yaml --env-file .env
+
+# Disable the terminal UI (plain output, useful in CI)
+loadforge run my-scenario.yaml --no-ui
+
+# Validate a scenario without running it
+loadforge validate my-scenario.yaml
+
+# Check installed version
+loadforge version
+```
+
+---
+
+## Scenario File
+
+LoadForge scenarios are plain YAML files you can commit alongside your code.
+
+```yaml
+name: user-api-test
+base_url: https://api.example.com
+
+load:
+  profile: ramp
+  duration: 2m
+  ramp_up:
+    start_workers: 5
+    end_workers: 50
+    duration: 30s
+
+scenarios:
+  - name: create-and-fetch-user
+    weight: 1
+    steps:
+      - name: create user
+        method: POST
+        url: /users
+        headers:
+          Content-Type: application/json
+        body:
+          json:
+            name: "Test User"
+            email: "test@example.com"
+        auth:
+          bearer: "your-token-here"
+
+      - name: get users
+        method: GET
+        url: /users
+        think: 500ms
+
+assertions:
+  - metric: p95_latency
+    operator: less_than
+    value: 500
+    enabled: true
+  - metric: error_rate
+    operator: less_than
+    value: 1
+    enabled: true
+```
+
+---
+
+## Load Profiles
+
+| Profile | Use case |
+|---|---|
+| `constant` | Fixed workers for the full duration — steady baseline benchmark |
+| `ramp` | Gradually increase workers — find the degradation point without shock |
+| `step` | Add workers in increments — observe how latency changes as load grows |
+| `spike` | Base workers with periodic bursts — test recovery after a traffic surge |
+
+---
+
+## Assertions
+
+Assertions let you define SLA thresholds that automatically mark a test as passed or failed.
+
+**Available metrics:** `p50_latency`, `p90_latency`, `p95_latency`, `p99_latency`, `avg_latency`, `max_latency`, `rps`, `error_rate`, `success_rate`, `total_requests`, `total_errors`
+
+**Available operators:** `less_than`, `less_than_or_equal`, `greater_than`, `greater_than_or_equal`, `equal`
+
+---
+
+## Web UI Configuration
+
+The web UI reads its configuration from `~/.loadforge/web.yml`. You can edit this file to change the address, credentials, or session settings.
 
 ```yaml
 addr: ":8080"
 username: "admin"
 password: "admin"
 session_ttl: "24h"
-log_file: "load_forge.logs"
+log_file: "/Users/you/.loadforge/load_forge.logs"
+history_file: "/Users/you/.loadforge/load_forge_history.json"
 ```
 
-### CLI
+To change your password securely, use the **Settings** page in the web UI — the new password is stored as a bcrypt hash.
+
+---
+
+## Building from Source
+
+Requires Go 1.26+.
 
 ```bash
-./bin/loadforge run testdata/sample.yaml
+git clone https://github.com/farhapartex/loadforge.git
+cd loadforge
 
-# Override workers and duration
-./bin/loadforge run testdata/sample.yaml --workers 20 --duration 1m
+# Build CLI
+make build          # → ./bin/loadforge
 
-# Disable the terminal UI
-./bin/loadforge run testdata/sample.yaml --no-ui
+# Build web UI server
+make build-web      # → ./bin/loadforge-web
 
-# Validate a scenario file without running it
-./bin/loadforge validate testdata/sample.yaml
+# Run directly without building
+make run ARGS="run my-scenario.yaml"
+make run-web
 ```
 
 ---
 
-## Running a load test from the UI
+## Feedback & Support
 
-1. Open `http://localhost:8080` and log in.
-2. Click **Run New Test**.
-3. Paste your **API Doc URL** — a publicly reachable OpenAPI 3.x or Swagger 2.0 spec (JSON or YAML).
-4. Optionally enter a **JWT token** if the spec endpoint or the API under test requires one.
-5. Set the load parameters and click **Start Test**:
+Have a question, found a bug, or want to suggest a feature?
 
-   - **Workers** — number of concurrent virtual users sending requests simultaneously. Start with `10` for a light test; use `50`–`200` for realistic load.
-   - **Duration** — how long the test runs. Accepts Go duration strings: `30s`, `2m`, `1h`, etc.
-   - **Load profile** — how traffic ramps up and behaves over time:
-     - `constant` — all workers start at once and run for the full duration. Good for a steady baseline benchmark.
-     - `ramp` — workers increase gradually from zero to the target count. Useful for finding the point where your API starts degrading without an instant shock.
-     - `step` — workers are added in fixed increments at regular intervals. Good for observing how latency and error rate change as load increases incrementally.
-     - `spike` — a small base load runs continuously with sudden bursts of extra workers injected at intervals. Useful for testing how quickly your API recovers after a surge.
+- **Email:** [hasan08sust@gmail.com](mailto:hasan08sust@gmail.com)
+- **GitHub Issues:** [github.com/farhapartex/loadforge/issues](https://github.com/farhapartex/loadforge/issues)
 
-The app fetches the spec, extracts all endpoints, generates a load test config, and starts running immediately. Live logs appear on the home page. Past runs are listed under **History**.
+Contributions are welcome. Open a pull request or start a discussion in Issues.
 
 ---
 
-## Load profiles
+## License
 
-| Profile | Description |
-|---|---|
-| `constant` | Fixed number of workers for the full duration |
-| `ramp` | Gradually increase workers from start to end |
-| `step` | Add workers in steps at set intervals |
-| `spike` | Base workers with periodic traffic spikes |
-
----
-
-## Makefile targets
-
-| Target | Description |
-|---|---|
-| `make build` | Build CLI binary to `./bin/loadforge` |
-| `make build-web` | Build web server to `./bin/loadforge-web` |
-| `make run ARGS="..."` | Run CLI via `go run` |
-| `make run-web` | Run web server via `go run` |
-| `make tidy` | Run `go mod tidy` |
-| `make clean` | Remove `./bin` |
+LoadForge is released under the [MIT License](LICENSE).
