@@ -3,6 +3,8 @@ package web
 import (
 	"net/http"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 const sessionCookieName = "lf_session"
@@ -25,7 +27,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
-	if username != s.cfg.Username || password != s.cfg.Password {
+	if username != s.cfg.Username || !s.verifyPassword(password) {
 		http.Redirect(w, r, "/login?error=Invalid+username+or+password", http.StatusSeeOther)
 		return
 	}
@@ -60,6 +62,13 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Expires: time.Unix(0, 0),
 	})
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
+func (s *Server) verifyPassword(input string) bool {
+	if !s.cfg.PasswordChanged {
+		return input == s.cfg.Password
+	}
+	return bcrypt.CompareHashAndPassword([]byte(s.cfg.Password), []byte(input)) == nil
 }
 
 func (s *Server) isAuthenticated(r *http.Request) bool {

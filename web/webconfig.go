@@ -12,13 +12,14 @@ import (
 )
 
 type WebConfig struct {
-	Addr               string             `yaml:"addr"`
-	Username           string             `yaml:"username"`
-	Password           string             `yaml:"password"`
-	SessionTTL         string             `yaml:"session_ttl"`
-	LogFile            string             `yaml:"log_file"`
-	HistoryFile        string             `yaml:"history_file"`
-	DefaultAssertions  []config.Assertion `yaml:"assertions,omitempty"`
+	Addr              string             `yaml:"addr"`
+	Username          string             `yaml:"username"`
+	Password          string             `yaml:"password"`
+	PasswordChanged   bool               `yaml:"password_changed"`
+	SessionTTL        string             `yaml:"session_ttl"`
+	LogFile           string             `yaml:"log_file"`
+	HistoryFile       string             `yaml:"history_file"`
+	DefaultAssertions []config.Assertion `yaml:"assertions,omitempty"`
 }
 
 func (c *WebConfig) parsedSessionTTL() time.Duration {

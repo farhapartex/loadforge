@@ -1,0 +1,31 @@
+{{define "content"}}
+<div class="account-settings-page">
+  <div class="settings-card" style="max-width:480px;width:100%;">
+    <div class="settings-card-header">
+      <div class="settings-card-header-left">
+        <span class="settings-card-title">Change Password</span>
+        <span class="settings-card-subtitle">Update your login password. You will stay logged in after changing it.</span>
+      </div>
+    </div>
+    <div class="settings-card-body" style="padding:24px;">
+      <div id="pw-alert" style="display:none;" class="pw-alert"></div>
+      <div class="form-group">
+        <label for="pw-current">Current Password</label>
+        <input type="password" id="pw-current" placeholder="Enter current password" autocomplete="current-password" />
+      </div>
+      <div class="form-group">
+        <label for="pw-new">New Password</label>
+        <input type="password" id="pw-new" placeholder="At least 6 characters" autocomplete="new-password" />
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="pw-confirm">Confirm New Password</label>
+        <input type="password" id="pw-confirm" placeholder="Repeat new password" autocomplete="new-password" />
+      </div>
+    </div>
+    <div class="settings-card-footer">
+      <span></span>
+      <button class="btn btn-primary" id="btn-change-password">Change Password</button>
+    </div>
+  </div>
+</div>
+{{end}}

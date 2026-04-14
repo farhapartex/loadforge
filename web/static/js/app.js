@@ -1,7 +1,32 @@
 (function () {
   'use strict';
 
-  // ── Alert auto-dismiss ────────────────────────────────────────
+  var userMenu     = document.getElementById('user-menu');
+  var userTrigger  = document.getElementById('user-menu-trigger');
+
+  if (userTrigger && userMenu) {
+    userTrigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var isOpen = userMenu.classList.toggle('open');
+      userTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!userMenu.contains(e.target)) {
+        userMenu.classList.remove('open');
+        userTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && userMenu.classList.contains('open')) {
+        userMenu.classList.remove('open');
+        userTrigger.setAttribute('aria-expanded', 'false');
+        userTrigger.focus();
+      }
+    });
+  }
+
   document.querySelectorAll('.alert').forEach(function (el) {
     setTimeout(function () {
       el.style.transition = 'opacity 0.4s ease';
@@ -10,7 +35,6 @@
     }, 4000);
   });
 
-  // ── Run Test modal ────────────────────────────────────────────
   var modalOverlay   = document.getElementById('modal-run-test');
   var btnRunTest     = document.getElementById('btn-run-test');
   var btnStopTest    = document.getElementById('btn-stop-test');
@@ -48,7 +72,6 @@
     }
   }
 
-  // Source tab switching
   var sourceTabs = document.querySelectorAll('.source-tab:not([disabled])');
   sourceTabs.forEach(function (tab) {
     tab.addEventListener('click', function () {
@@ -143,7 +166,6 @@
     });
   }
 
-  // ── Stop test ─────────────────────────────────────────────────
   if (btnStopTest) {
     btnStopTest.addEventListener('click', function () {
       btnStopTest.disabled = true;
@@ -157,7 +179,6 @@
     });
   }
 
-  // ── Live stats polling ────────────────────────────────────────
   var statActiveEl = document.querySelector('[data-stat="active-tests"]');
   var statStatusEl = document.querySelector('[data-stat="last-status"]');
 
@@ -176,7 +197,6 @@
     }, 3000);
   }
 
-  // ── Activity log stream ───────────────────────────────────────
   var logOutput = document.getElementById('log-output');
   if (!logOutput) return;
 
@@ -242,14 +262,13 @@
   };
 })();
 
-// ── SLA Thresholds settings page ─────────────────────────────
 (function () {
   'use strict';
 
-  var tbody         = document.getElementById('threshold-tbody');
-  var btnAdd        = document.getElementById('btn-add-threshold');
-  var btnSave       = document.getElementById('btn-save-thresholds');
-  var saveStatus    = document.getElementById('save-status');
+  var tbody      = document.getElementById('threshold-tbody');
+  var btnAdd     = document.getElementById('btn-add-threshold');
+  var btnSave    = document.getElementById('btn-save-thresholds');
+  var saveStatus = document.getElementById('save-status');
 
   if (!tbody) return;
 
@@ -268,11 +287,11 @@
   ];
 
   var OPERATORS = [
-    { value: 'less_than',            label: '<'  },
-    { value: 'less_than_or_equal',   label: '≤'  },
-    { value: 'greater_than',         label: '>'  },
-    { value: 'greater_than_or_equal',label: '≥'  },
-    { value: 'equal',                label: '='  },
+    { value: 'less_than',             label: '<' },
+    { value: 'less_than_or_equal',    label: '≤' },
+    { value: 'greater_than',          label: '>' },
+    { value: 'greater_than_or_equal', label: '≥' },
+    { value: 'equal',                 label: '=' },
   ];
 
   function unitForMetric(metric) {
@@ -434,7 +453,6 @@
   }
 }());
 
-// ── History detail modal ──────────────────────────────────────
 (function () {
   'use strict';
 
@@ -452,9 +470,9 @@
 
   function closeDetail() {
     detailOverlay.classList.remove('open');
-    if (detailBody)   detailBody.innerHTML = '<div class="detail-loading">Loading...</div>';
-    if (headerBadge)  headerBadge.innerHTML = '';
-    if (headerTitle)  headerTitle.textContent = 'Run Details';
+    if (detailBody)  detailBody.innerHTML = '<div class="detail-loading">Loading...</div>';
+    if (headerBadge) headerBadge.innerHTML = '';
+    if (headerTitle) headerTitle.textContent = 'Run Details';
   }
 
   if (btnClose) btnClose.addEventListener('click', closeDetail);
@@ -488,8 +506,6 @@
       .replace(/>/g, '&gt;');
   }
 
-  // ── Render helpers ──────────────────────────────────────────
-
   function heroStat(value, label, mod) {
     return '<div class="detail-hero-stat' + (mod ? ' ' + mod : '') + '">' +
       '<span class="detail-hero-value">' + esc(String(value)) + '</span>' +
@@ -521,8 +537,6 @@
   function emptyPanel(msg) {
     return '<div class="detail-empty-panel">' + esc(msg) + '</div>';
   }
-
-  // ── Tab panel builders ──────────────────────────────────────
 
   function buildOverviewPanel(d) {
     var html = '<div class="detail-tab-panel" data-panel="overview">';
@@ -631,10 +645,7 @@
     return html;
   }
 
-  // ── Main render ─────────────────────────────────────────────
-
   function renderDetail(d) {
-    // Update header
     if (headerBadge) {
       headerBadge.innerHTML = '<span class="status-badge status-' + esc(d.Status) + '">' + esc(d.Status) + '</span>';
     }
@@ -643,15 +654,13 @@
       headerTitle.title = d.SpecURL || '';
     }
 
-    // Hero stats bar
-    var errorRateNum  = parseFloat(d.ErrorRate) || 0;
+    var errorRateNum = parseFloat(d.ErrorRate) || 0;
     var heroHTML =
       heroStat(d.Requests  || '—', 'Requests',   '') +
       heroStat(d.RPS       || '—', 'Avg RPS',    '') +
       heroStat(d.ErrorRate || '—', 'Error Rate',  errorRateNum > 0 ? 'hero-danger' : 'hero-success') +
       heroStat(d.Elapsed   || '—', 'Elapsed',    '');
 
-    // Tab definitions
     var errorCount = d.Errors ? d.Errors.length : 0;
     var slaLabel   = d.AssertionResults && d.AssertionResults.length > 0
       ? 'SLA ' + (d.AssertionsPassed ? '✓' : '✗')
@@ -662,7 +671,7 @@
       { id: 'metrics',      label: 'Metrics'      },
       { id: 'status-codes', label: 'Status Codes' },
       { id: 'errors',       label: errorCount > 0 ? 'Errors (' + errorCount + ')' : 'Errors' },
-      { id: 'sla',          label: slaLabel        },
+      { id: 'sla',          label: slaLabel },
     ];
 
     var tabNavHTML = tabs.map(function (t, i) {
@@ -677,11 +686,10 @@
       buildSlaPanel(d);
 
     detailBody.innerHTML =
-      '<div class="detail-hero">'    + heroHTML    + '</div>' +
-      '<div class="detail-tab-nav">' + tabNavHTML  + '</div>' +
-      '<div class="detail-panels">'  + panelsHTML  + '</div>';
+      '<div class="detail-hero">'    + heroHTML   + '</div>' +
+      '<div class="detail-tab-nav">' + tabNavHTML + '</div>' +
+      '<div class="detail-panels">'  + panelsHTML + '</div>';
 
-    // Wire tab switching
     var allTabs   = detailBody.querySelectorAll('.detail-tab');
     var allPanels = detailBody.querySelectorAll('.detail-tab-panel');
 
@@ -695,4 +703,68 @@
       });
     });
   }
+}());
+
+(function () {
+  'use strict';
+
+  var btnChange  = document.getElementById('btn-change-password');
+  var pwCurrent  = document.getElementById('pw-current');
+  var pwNew      = document.getElementById('pw-new');
+  var pwConfirm  = document.getElementById('pw-confirm');
+  var pwAlert    = document.getElementById('pw-alert');
+
+  if (!btnChange) return;
+
+  function showAlert(msg, isError) {
+    pwAlert.textContent = msg;
+    pwAlert.className = 'pw-alert ' + (isError ? 'pw-alert-error' : 'pw-alert-success');
+    pwAlert.style.display = 'block';
+  }
+
+  btnChange.addEventListener('click', function () {
+    var current = pwCurrent.value.trim();
+    var newPw   = pwNew.value.trim();
+    var confirm = pwConfirm.value.trim();
+
+    if (!current || !newPw || !confirm) {
+      showAlert('All fields are required.', true);
+      return;
+    }
+
+    if (newPw !== confirm) {
+      showAlert('New password and confirm password do not match.', true);
+      return;
+    }
+
+    if (newPw.length < 6) {
+      showAlert('New password must be at least 6 characters.', true);
+      return;
+    }
+
+    btnChange.disabled = true;
+    btnChange.textContent = 'Saving…';
+
+    fetch('/api/settings/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current: current, new: newPw, confirm: confirm }),
+    })
+      .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+      .then(function (r) {
+        if (r.ok) {
+          showAlert('Password changed successfully.', false);
+          pwCurrent.value = '';
+          pwNew.value = '';
+          pwConfirm.value = '';
+        } else {
+          showAlert(r.body.error || 'Failed to change password.', true);
+        }
+      })
+      .catch(function () { showAlert('Network error. Please try again.', true); })
+      .finally(function () {
+        btnChange.disabled = false;
+        btnChange.textContent = 'Change Password';
+      });
+  });
 }());

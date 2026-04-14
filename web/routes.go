@@ -21,5 +21,7 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("/api/history", s.requireAuth(http.HandlerFunc(s.handleHistoryDetail)))
 	s.mux.Handle("/threshold-settings", s.requireAuth(http.HandlerFunc(s.handleThresholdSettings)))
 	s.mux.Handle("/api/assertions", s.requireAuth(http.HandlerFunc(s.handleAssertions)))
+	s.mux.Handle("/settings", s.requireAuth(http.HandlerFunc(s.handleSettings)))
+	s.mux.Handle("/api/settings/password", s.requireAuth(http.HandlerFunc(s.handleChangePassword)))
 	s.mux.Handle("/", s.requireAuth(http.HandlerFunc(s.handleHome)))
 }
