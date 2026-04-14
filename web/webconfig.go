@@ -69,13 +69,21 @@ func loadWebConfig(path string) (*WebConfig, error) {
 }
 
 func defaultWebConfig() *WebConfig {
+	logFile := "load_forge.logs"
+	historyFile := "load_forge_history.json"
+
+	if dir, err := loadForgeDir(); err == nil {
+		logFile = dir + "/load_forge.logs"
+		historyFile = dir + "/load_forge_history.json"
+	}
+
 	return &WebConfig{
 		Addr:              ":8080",
 		Username:          "admin",
 		Password:          "admin",
 		SessionTTL:        "24h",
-		LogFile:           "load_forge.logs",
-		HistoryFile:       "load_forge_history.json",
+		LogFile:           logFile,
+		HistoryFile:       historyFile,
 		DefaultAssertions: defaultAssertions(),
 	}
 }

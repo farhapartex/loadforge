@@ -50,16 +50,19 @@
 
 <!-- Run detail modal -->
 <div class="modal-overlay" id="modal-run-detail" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
-  <div class="modal modal-wide">
-    <div class="modal-header">
-      <h3 class="modal-title" id="detail-modal-title">Run Details</h3>
+  <div class="modal modal-detail">
+    <div class="modal-header detail-modal-header">
+      <div class="detail-header-left">
+        <span id="detail-header-badge"></span>
+        <h3 class="modal-title detail-header-title" id="detail-modal-title">Run Details</h3>
+      </div>
       <button class="modal-close" id="btn-detail-close" aria-label="Close">
         <svg viewBox="0 0 24 24" width="18" height="18">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
     </div>
-    <div class="modal-body detail-body" id="detail-body">
+    <div id="detail-body" class="detail-body-shell">
       <div class="detail-loading">Loading...</div>
     </div>
   </div>
