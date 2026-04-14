@@ -46,7 +46,7 @@ builds:
 
 archives:
   - id: loadforge
-    builds:
+    ids:
       - loadforge
       - loadforge-web
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
@@ -55,7 +55,6 @@ archives:
         formats:
           - zip
     files:
-      - README.md
       - LICENSE
 
 checksum:
