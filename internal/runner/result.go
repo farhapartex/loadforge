@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/farhapartex/loadforge/internal/config"
 	"github.com/farhapartex/loadforge/internal/loader"
 )
 
@@ -27,20 +28,24 @@ type LatencyPercentiles struct {
 	P90 time.Duration
 	P95 time.Duration
 	P99 time.Duration
+	Avg time.Duration
+	Max time.Duration
 }
 
 type RunRecord struct {
-	ID          string
-	SpecURL     string
-	Profile     string
-	Workers     int
-	Duration    string
-	StartedAt   time.Time
-	EndedAt     time.Time
-	Status      RunStatus
-	Error       string
-	Snapshot    *loader.MetricsSnapshot
-	Percentiles *LatencyPercentiles
+	ID               string
+	SpecURL          string
+	Profile          string
+	Workers          int
+	Duration         string
+	StartedAt        time.Time
+	EndedAt          time.Time
+	Status           RunStatus
+	Error            string
+	Snapshot         *loader.MetricsSnapshot
+	Percentiles      *LatencyPercentiles
+	AssertionResults []config.AssertionResult
+	AssertionsPassed bool
 }
 
 type ResultStore struct {
@@ -135,11 +140,18 @@ func ComputePercentiles(snap *loader.MetricsSnapshot) *LatencyPercentiles {
 	copy(sorted, snap.Latencies)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
 
+	var total time.Duration
+	for _, d := range sorted {
+		total += d
+	}
+
 	p := &LatencyPercentiles{
 		P50: percentileAt(sorted, 50),
 		P90: percentileAt(sorted, 90),
 		P95: percentileAt(sorted, 95),
 		P99: percentileAt(sorted, 99),
+		Avg: total / time.Duration(len(sorted)),
+		Max: sorted[len(sorted)-1],
 	}
 
 	snap.Latencies = nil

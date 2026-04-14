@@ -82,6 +82,8 @@ func (s *Server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cfg.Assertions = s.cfg.DefaultAssertions
+
 	ref := input.URL
 	if ref == "" {
 		ref = input.Filename

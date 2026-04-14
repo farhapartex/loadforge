@@ -16,16 +16,17 @@ import (
 )
 
 type Server struct {
-	cfg      *WebConfig
-	sessions *SessionStore
-	templates *templateCache
-	logs     *LogBroadcaster
-	stats    *RunStats
-	runner   *runner.Runner
-	loaders  *loaderRegistry
-	logFile  *os.File
-	mux      *http.ServeMux
-	http     *http.Server
+	configPath string
+	cfg        *WebConfig
+	sessions   *SessionStore
+	templates  *templateCache
+	logs       *LogBroadcaster
+	stats      *RunStats
+	runner     *runner.Runner
+	loaders    *loaderRegistry
+	logFile    *os.File
+	mux        *http.ServeMux
+	http       *http.Server
 }
 
 func newServer(configPath string) (*Server, error) {
@@ -48,8 +49,9 @@ func newServer(configPath string) (*Server, error) {
 
 	mux := http.NewServeMux()
 	srv := &Server{
-		cfg:       cfg,
-		sessions:  newSessionStore(cfg.parsedSessionTTL()),
+		configPath: configPath,
+		cfg:        cfg,
+		sessions:   newSessionStore(cfg.parsedSessionTTL()),
 		templates: tmplCache,
 		logs:      newLogBroadcaster(),
 		stats:     newRunStats(),

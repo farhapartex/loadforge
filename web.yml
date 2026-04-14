@@ -1,5 +1,43 @@
-addr: ":8080"
-username: "admin"
-password: "admin"
-session_ttl: "24h"
-log_file: "load_forge.logs"
+addr: :8080
+username: admin
+password: admin
+session_ttl: 24h
+log_file: load_forge.logs
+history_file: load_forge_history.json
+assertions:
+    - metric: p95_latency
+      operator: less_than
+      value: 500
+      enabled: true
+    - metric: p99_latency
+      operator: less_than
+      value: 1000
+      enabled: true
+    - metric: error_rate
+      operator: less_than
+      value: 1
+      enabled: true
+    - metric: success_rate
+      operator: greater_than_or_equal
+      value: 99
+      enabled: true
+    - metric: rps
+      operator: greater_than
+      value: 10
+      enabled: true
+    - metric: max_latency
+      operator: less_than
+      value: 500
+      enabled: true
+    - metric: error_rate
+      operator: less_than
+      value: 2
+      enabled: true
+    - metric: total_requests
+      operator: less_than
+      value: 4000
+      enabled: true
+    - metric: total_errors
+      operator: less_than
+      value: 100
+      enabled: true

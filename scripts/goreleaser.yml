@@ -1,0 +1,90 @@
+version: 2
+
+project_name: loadforge
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: loadforge
+    main: ./cmd/loadforge
+    binary: loadforge
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/farhapartex/loadforge/internal/cli.version={{.Version}}
+
+  - id: loadforge-web
+    main: ./cmd/web
+    binary: loadforge-web
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - id: loadforge
+    builds:
+      - loadforge
+      - loadforge-web
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+release:
+  github:
+    owner: farhapartex
+    name: loadforge
+  name_template: "v{{ .Version }}"
+  draft: false
+  prerelease: auto
+  header: |
+    ## LoadForge {{ .Tag }}
+
+    Install with one command:
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/farhapartex/loadforge/main/scripts/install.sh | sudo bash
+    ```
+  footer: |
+    **Full changelog**: https://github.com/farhapartex/loadforge/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
