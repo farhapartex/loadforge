@@ -13,6 +13,7 @@ jobs:
   release:
     name: Tag & Publish
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
@@ -24,20 +25,21 @@ jobs:
       - name: Read version from version.yml
         id: version
         run: |
-          VERSION=$(grep 'version:' version.yml | sed "s/version: *['\"]*//" | tr -d "'\"" | tr -d '[:space:]')
+          VERSION=$(grep '^version:' version.yml | awk '{print $2}' | tr -d "\"'[:space:]")
           echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Detected version: ${VERSION}"
 
       - name: Check if tag already exists
         id: tag_check
         run: |
           TAG="${{ steps.version.outputs.tag }}"
-          if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag $TAG already exists — skipping release."
+            echo "Tag ${TAG} already exists — skipping release."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Tag $TAG not found — will create release."
+            echo "Tag ${TAG} not found — will create release."
           fi
 
       - name: Create and push tag
@@ -53,7 +55,7 @@ jobs:
         if: steps.tag_check.outputs.exists == 'false'
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: "1.26"
           cache: true
 
       - name: Run GoReleaser
