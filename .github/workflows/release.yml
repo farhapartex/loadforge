@@ -1,34 +1,104 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  push:
     branches: [main]
+    paths:
+      - "version.yml"
 
 permissions:
   contents: write
 
+env:
+  GO_VERSION: "1.26"
+
 jobs:
-  release:
-    name: Tag & Publish
+  build:
+    name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            label: linux_amd64
+          - goos: linux
+            goarch: arm64
+            label: linux_arm64
+          - goos: darwin
+            goarch: amd64
+            label: darwin_amd64
+          - goos: darwin
+            goarch: arm64
+            label: darwin_arm64
+          - goos: windows
+            goarch: amd64
+            label: windows_amd64
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Read version from version.yml
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(grep '^version:' version.yml | awk '{print $2}' | tr -d "\"'[:space:]")
+          echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build binaries
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          EXT=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
+
+          mkdir -p dist
+
+          go build -trimpath -ldflags "-s -w -X github.com/farhapartex/loadforge/internal/cli.version=${VERSION}" \
+            -o "dist/loadforge-${{ matrix.label }}${EXT}" ./cmd/loadforge
+
+          go build -trimpath -ldflags "-s -w" \
+            -o "dist/loadforge-web-${{ matrix.label }}${EXT}" ./cmd/web
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.label }}
+          path: dist/
+          retention-days: 1
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
         id: version
         run: |
           VERSION=$(grep '^version:' version.yml | awk '{print $2}' | tr -d "\"'[:space:]")
           echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Detected version: ${VERSION}"
+          echo "Release version: ${VERSION}"
 
       - name: Check if tag already exists
         id: tag_check
@@ -36,34 +106,43 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag ${TAG} already exists — skipping release."
+            echo "Tag ${TAG} already exists — skipping."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Tag ${TAG} not found — will create release."
           fi
 
-      - name: Create and push tag
+      - name: Download all artifacts
         if: steps.tag_check.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+          merge-multiple: true
+
+      - name: List release files
+        if: steps.tag_check.outputs.exists == 'false'
+        run: ls -lh dist/
+
+      - name: Create GitHub Release
+        if: steps.tag_check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.value }}"
+
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "$TAG"
           git push origin "$TAG"
 
-      - name: Set up Go
-        if: steps.tag_check.outputs.exists == 'false'
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-          cache: true
+          gh release create "$TAG" \
+            --title "LoadForge ${TAG}" \
+            --notes "## LoadForge ${TAG}
 
-      - name: Run GoReleaser
-        if: steps.tag_check.outputs.exists == 'false'
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean --config scripts/goreleaser.yml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+Install with one command:
+\`\`\`bash
+curl -fsSL https://raw.githubusercontent.com/farhapartex/loadforge/main/scripts/install.sh | sudo bash
+\`\`\`
+
+**Full changelog**: https://github.com/farhapartex/loadforge/compare/$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo main)...${TAG}" \
+            dist/*
