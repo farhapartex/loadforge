@@ -1,6 +1,6 @@
 bin
 load_forge.logs
-*.txt
+FEATURE.txt
 
 load_forge_history.json
 

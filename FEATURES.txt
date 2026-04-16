@@ -1,0 +1,661 @@
+================================================================================
+LOADFORGE - PLANNED FEATURES (5 HIGH-IMPACT ADDITIONS)
+================================================================================
+Generated: 2026-04-12
+Project: LoadForge - Go-based HTTP Load Testing Tool
+================================================================================
+
+
+--------------------------------------------------------------------------------
+FEATURE 1: ASSERTIONS & SLA THRESHOLDS (PASS/FAIL CRITERIA)
+--------------------------------------------------------------------------------
+
+OVERVIEW:
+    Users configure SLA thresholds through a dedicated Settings page in the web
+    UI. The deafult threshold values are stored in web.yml (the server config file) and
+    are always read from there — so whatever is saved in web.yml is exactly what
+    the UI shows. When a user changes any threshold value in the UI and hits
+    Save, the web.yml file is updated immediately. These stored thresholds are
+    then automatically applied to every test run. After each run completes,
+    LoadForge evaluates each enabled threshold against the actual metrics and
+    reports which passed or failed.
+
+    The key design principle: web.yml is the single source of truth for
+    threshold configuration. The UI is just a friendly editor for that file.
+
+USE CASE:
+    A product owner opens the LoadForge Settings page, sees pre-filled default
+    thresholds (P95 < 500ms, error rate < 1%, etc.), adjusts them to match
+    their product SLAs, and clicks Save. From that point on, every load test
+    run automatically checks against those thresholds. After a test, the
+    History page shows a clear green/red badge per threshold — no manual
+    metric reading required.
+
+HOW IT WORKS — END TO END:
+
+    1. On first launch, web.yml is written with built-in default thresholds.
+    2. User navigates to Settings → SLA Thresholds in the web UI.
+    3. The page loads threshold values by reading web.yml via GET /api/assertions.
+    4. User edits values (metric, operator, threshold value, enabled toggle).
+    5. User clicks "Save". The UI POSTs to /api/assertions, which writes the
+       updated values back to web.yml.
+    6. On the next test run, the runner reads thresholds from web.yml and
+       evaluates them after the test completes.
+    7. Results (passed/failed per threshold) are stored in run history and
+       displayed on the History detail view.
+
+WEB.YML — DEFAULT ASSERTION BLOCK:
+    The following block is added to web.yml automatically on first run.
+    Users can also edit web.yml directly if they prefer.
+
+    assertions:
+      - metric: p95_latency
+        operator: less_than
+        value: 500
+        enabled: true
+
+      - metric: p99_latency
+        operator: less_than
+        value: 1000
+        enabled: true
+
+      - metric: error_rate
+        operator: less_than
+        value: 1.0
+        enabled: true
+
+      - metric: success_rate
+        operator: greater_than_or_equal
+        value: 99.0
+        enabled: false
+
+      - metric: rps
+        operator: greater_than
+        value: 10
+        enabled: false
+
+ASSERTION FIELDS IN WEB.YML:
+    metric      Which metric to check (see supported metrics below)
+    operator    Comparison operator (see supported operators below)
+    value       The threshold value to compare against
+    enabled     true = this threshold is active; false = it is stored but skipped
+
+SUPPORTED METRICS:
+    - p50_latency       (milliseconds)
+    - p90_latency       (milliseconds)
+    - p95_latency       (milliseconds)
+    - p99_latency       (milliseconds)
+    - avg_latency       (milliseconds)
+    - max_latency       (milliseconds)
+    - error_rate        (percentage 0–100)
+    - success_rate      (percentage 0–100)
+    - rps               (requests per second)
+    - total_requests    (count)
+    - total_errors      (count)
+
+SUPPORTED OPERATORS:
+    - less_than               (<)
+    - less_than_or_equal      (<=)
+    - greater_than            (>)
+    - greater_than_or_equal   (>=)
+    - equal                   (=)
+
+UI — SETTINGS PAGE (web/templates/settings.html):
+    A new "Settings" page accessible from the sidebar navigation.
+
+    Layout:
+    ┌─────────────────────────────────────────────────┐
+    │  Settings                                        │
+    ├─────────────────────────────────────────────────┤
+    │  SLA Thresholds                                  │
+    │  These thresholds are evaluated after every run. │
+    │                                                  │
+    │  [ ] Metric         Operator   Value   Unit      │
+    │  [✓] P95 Latency    <          500     ms        │
+    │  [✓] P99 Latency    <          1000    ms        │
+    │  [✓] Error Rate     <          1.0     %         │
+    │  [ ] Success Rate   >=         99.0    %         │
+    │  [ ] RPS            >          10      req/s     │
+    │                                                  │
+    │  [+ Add Threshold]              [Save Changes]   │
+    └─────────────────────────────────────────────────┘
+
+    - Each row has: enabled checkbox, metric dropdown, operator dropdown,
+      value input (number), unit label (auto-set by metric), remove button.
+    - "Add Threshold" appends a new empty row with default values.
+    - "Save Changes" POSTs all rows (including disabled ones) to /api/assertions,
+      which overwrites the assertions block in web.yml.
+    - On page load, rows are populated by fetching GET /api/assertions.
+    - A success/error message is shown after save.
+
+API ENDPOINTS:
+    GET  /api/assertions
+        Returns the current assertions block from web.yml as JSON.
+        Response: [{ "metric": "p95_latency", "operator": "less_than",
+                     "value": 500, "enabled": true }, ...]
+
+    POST /api/assertions
+        Accepts a JSON array of assertion objects.
+        Writes the full list (enabled and disabled) to web.yml.
+        Response: { "status": "saved" }
+        Error:    { "error": "..." }
+
+POST-RUN EVALUATION:
+    After each test run completes, the runner reads the assertions from
+    web.yml and compares each enabled threshold against the final metrics.
+    Results are stored in the RunRecord as an AssertionResult slice:
+
+    AssertionResult fields:
+        Metric      string   (e.g., "p95_latency")
+        Operator    string   (e.g., "less_than")
+        Threshold   float64  (e.g., 500)
+        Actual      float64  (e.g., 312)
+        Passed      bool
+
+    The overall run is marked as "passed" only if ALL enabled assertions pass.
+
+HISTORY PAGE — ASSERTION RESULTS:
+    The History detail modal gains an "SLA Thresholds" section:
+
+    SLA THRESHOLDS
+    ┌───────────────────┬──────────┬──────────┬────────┐
+    │ Metric            │ Expected │ Actual   │ Result │
+    ├───────────────────┼──────────┼──────────┼────────┤
+    │ P95 Latency       │ < 500ms  │ 312ms    │ PASS   │
+    │ P99 Latency       │ < 1000ms │ 780ms    │ PASS   │
+    │ Error Rate        │ < 1.0%   │ 1.2%     │ FAIL   │
+    └───────────────────┴──────────┴──────────┴────────┘
+    Overall: FAILED (1 of 3 thresholds failed)
+
+    - PASS rows are shown in green, FAIL rows in red.
+    - Overall result badge is shown prominently at the top of the detail view.
+
+IMPLEMENTATION NOTES:
+    - web.yml is the single source of truth — never hardcode thresholds in code.
+    - On first launch, if web.yml has no assertions block, write the defaults.
+    - The GET /api/assertions endpoint must always return from the in-memory
+      WebConfig (which is loaded from web.yml at startup and kept in sync on save).
+    - The POST /api/assertions handler updates s.cfg.DefaultAssertions in memory
+      AND writes the full web.yml back to disk atomically (write to temp file,
+      then rename) to prevent partial writes on crash.
+    - Disabled assertions are saved to web.yml but skipped during evaluation.
+    - The Settings page is protected by the same auth middleware as other pages.
+    - Add "Settings" link to the sidebar navigation in layout.html.
+
+FILES TO MODIFY / CREATE:
+    - web/webconfig.go                  (add Assertion struct, DefaultAssertions
+                                         field, Save() method, populate defaults)
+    - web/server.go                     (store configPath in Server struct)
+    - web/handler_assertions.go        (new: GET + POST /api/assertions)
+    - web/routes.go                     (register /api/assertions + /settings)
+    - web/templates/settings.html      (new: Settings page with threshold editor)
+    - web/templates/layout.html        (add Settings link to sidebar)
+    - web/static/js/app.js             (assertions UI logic: load, add, remove,
+                                         save, unit labels per metric)
+    - web/static/css/app.css           (assertion row styles, settings page layout)
+    - internal/config/config.go        (add Assertion + AssertionResult structs)
+    - internal/runner/runner.go        (evaluate assertions after run, store
+                                         AssertionResult in RunRecord)
+    - internal/runner/result.go        (add AssertionResults to RunRecord)
+    - web/handler_history.go           (render assertion results in detail view)
+
+Note: The route for ui should be  "/threshold-settings". Make sure the UI looks professional and nice. keep design simple but good looking.
+
+
+--------------------------------------------------------------------------------
+FEATURE 2: RESPONSE CHAIN & VARIABLE EXTRACTION
+--------------------------------------------------------------------------------
+
+OVERVIEW:
+    Allow steps within a scenario to extract values from HTTP responses and
+    store them as named variables. These variables can then be referenced in
+    subsequent steps using a template syntax (e.g., {{.token}}). This enables
+    realistic multi-step user journeys such as login → get resource → update
+    resource → logout, which are impossible today with hardcoded values.
+
+USE CASE:
+    An e-commerce platform owner wants to load test their full checkout flow:
+    1. POST /auth/login         → extract JWT access_token from response body
+    2. GET  /products           → use token, extract first product ID
+    3. POST /cart/add           → use token and product ID
+    4. POST /orders/checkout    → use token and cart ID from previous step
+    Currently this is impossible without hardcoding tokens. Variable extraction
+    makes the entire flow testable at scale.
+
+YAML CONFIGURATION EXAMPLE:
+    scenarios:
+      - name: "checkout_flow"
+        steps:
+          - name: "login"
+            method: POST
+            url: "/auth/login"
+            body:
+              type: json
+              content: '{"email": "user@example.com", "password": "secret"}'
+            extract:
+              - name: access_token
+                from: body
+                path: "$.data.access_token"   # JSONPath expression
+              - name: user_id
+                from: body
+                path: "$.data.user.id"
+
+          - name: "get_products"
+            method: GET
+            url: "/products"
+            auth:
+              type: bearer
+              token: "{{.access_token}}"      # variable from previous step
+            extract:
+              - name: first_product_id
+                from: body
+                path: "$.products[0].id"
+
+          - name: "add_to_cart"
+            method: POST
+            url: "/cart/add"
+            auth:
+              type: bearer
+              token: "{{.access_token}}"
+            body:
+              type: json
+              content: '{"product_id": "{{.first_product_id}}", "quantity": 1}'
+            extract:
+              - name: cart_id
+                from: body
+                path: "$.cart.id"
+
+          - name: "checkout"
+            method: POST
+            url: "/orders/checkout"
+            auth:
+              type: bearer
+              token: "{{.access_token}}"
+            body:
+              type: json
+              content: '{"cart_id": "{{.cart_id}}", "user_id": "{{.user_id}}"}'
+
+EXTRACTION SOURCES:
+    - body          (JSON body, using JSONPath like $.key.nested)
+    - header        (response header by name, e.g., "Authorization")
+    - cookie        (cookie value by name)
+    - status        (HTTP status code as string)
+
+TEMPLATE SYNTAX:
+    - {{.variable_name}}    inject variable value
+    - Variables are scoped per-worker (each virtual user has its own state)
+    - Missing variable references log a warning and use empty string
+
+IMPLEMENTATION NOTES:
+    - Add "extract" block to the Step struct in internal/config/config.go
+    - Create a VariableStore type (map[string]string) in internal/engine/
+    - After each step execution, run extraction on the response
+    - Before each step, run template rendering on URL, headers, and body
+    - Variable store is passed through the worker goroutine (per-worker scope)
+    - Use encoding/json + a lightweight JSONPath library (e.g., PaesslerAG/jsonpath)
+    - Handle extraction errors gracefully (log warning, continue or abort step)
+
+FILES TO MODIFY / CREATE:
+    - internal/config/config.go             (add Extract struct to Step)
+    - internal/engine/engine.go             (add template rendering + extraction)
+    - internal/engine/variables.go          (new: VariableStore + JSONPath eval)
+    - internal/loader/worker.go             (pass variable store through steps)
+
+
+--------------------------------------------------------------------------------
+FEATURE 3: HTML / PDF REPORT GENERATION
+--------------------------------------------------------------------------------
+
+OVERVIEW:
+    After a load test completes, automatically generate a self-contained,
+    shareable HTML report (and optionally a PDF) containing time-series charts,
+    latency percentile breakdowns, error summaries, status code distributions,
+    and a side-by-side comparison with the most recent previous run. The report
+    should require zero dependencies to open — just a browser.
+
+USE CASE:
+    A product owner asks: "Did the deployment we just pushed make the API faster
+    or slower?" The developer runs the load test, opens the generated report in
+    a browser, and emails/Slacks the HTML file directly. The product owner sees
+    clear charts, a green/red comparison table, and a plain-English summary
+    without needing to understand what P95 means.
+
+CLI USAGE:
+    # Generate report after run (saved alongside results)
+    loadforge run scenario.yaml --report
+
+    # Generate report in specific format and location
+    loadforge run scenario.yaml --report --report-format html --report-out ./reports/
+
+    # Generate report from a past run stored in history
+    loadforge report --run-id abc123
+
+    # Compare two specific runs
+    loadforge report --compare run-abc123 run-def456
+
+REPORT CONTENTS:
+    Section 1 - Test Summary
+        - Test name, date/time, duration
+        - Scenario file used
+        - Load profile and worker count
+        - Overall result (PASSED / FAILED if assertions defined)
+
+    Section 2 - Key Metrics (summary cards)
+        - Total Requests
+        - Requests Per Second (avg, peak)
+        - Success Rate %
+        - Error Rate %
+        - Avg / P50 / P95 / P99 / Max Latency
+
+    Section 3 - Charts (rendered with Chart.js, embedded inline)
+        - Latency over time (line chart, P50 + P95 + P99 series)
+        - RPS over time (line chart)
+        - Error rate over time (line chart)
+        - Status code distribution (pie/donut chart)
+        - Worker count over time (area chart, useful for ramp/step profiles)
+
+    Section 4 - Error Breakdown
+        - Table of error messages with frequency counts
+        - HTTP errors grouped by status code
+
+    Section 5 - Baseline Comparison (if previous run exists)
+        - Side-by-side table: current vs previous
+        - Delta column with color coding (green = improved, red = regression)
+        - Metrics compared: all latency percentiles, RPS, error rate
+
+    Section 6 - Assertion Results (if assertions defined)
+        - Table showing each assertion, expected value, actual value, pass/fail
+
+IMPLEMENTATION NOTES:
+    - Use Go's html/template package to render the report
+    - Embed Chart.js (minified) inside the HTML so it works offline
+    - Store time-series snapshots during the run (every ~1 second) for charts
+    - Add a --report flag to the run CLI command
+    - Add a separate "report" subcommand to generate from historical run IDs
+    - PDF generation can use headless Chrome via a system call (optional, only
+      if Chrome is available) or a pure-Go PDF library as fallback
+    - The self-contained HTML file should be under 500KB for easy sharing
+
+FILES TO MODIFY / CREATE:
+    - internal/cli/run.go                   (add --report flag)
+    - internal/cli/report.go               (new: report subcommand)
+    - internal/report/report.go            (new: report generation logic)
+    - internal/report/templates/           (new: HTML template files)
+    - internal/loader/matrics.go           (add time-series snapshot storage)
+    - internal/runner/runner.go            (trigger report generation on finish)
+
+
+--------------------------------------------------------------------------------
+FEATURE 4: PROMETHEUS METRICS EXPORTER + GRAFANA DASHBOARD
+--------------------------------------------------------------------------------
+
+OVERVIEW:
+    Expose a /metrics endpoint on the web server that emits real-time load test
+    data in Prometheus text format during an active test run. Ship a pre-built
+    Grafana dashboard JSON (importable with one click) that visualizes all
+    LoadForge metrics. This makes LoadForge a first-class citizen in any
+    modern observability stack and allows correlating load test results with
+    application-side metrics (CPU, memory, DB latency, error rates) on the
+    same Grafana board.
+
+USE CASE:
+    A platform engineering team runs LoadForge against their staging environment
+    while their full Grafana stack shows application metrics. They import the
+    LoadForge dashboard, which displays load test metrics in panels next to
+    their API server CPU and database query latency panels. They can see exactly
+    at what RPS the database starts struggling.
+
+PROMETHEUS ENDPOINT:
+    URL: GET /metrics  (standard Prometheus scrape endpoint)
+    Format: Prometheus text exposition format (plain text, no JSON)
+
+EXPOSED METRICS:
+    # Load test status
+    loadforge_test_running              (gauge, 0 or 1)
+    loadforge_test_duration_seconds     (gauge, elapsed time)
+    loadforge_workers_active            (gauge, current worker count)
+
+    # Request counters
+    loadforge_requests_total            (counter, label: status="success|failure")
+    loadforge_requests_per_second       (gauge, current RPS)
+
+    # Latency (in milliseconds)
+    loadforge_latency_p50_ms            (gauge)
+    loadforge_latency_p90_ms            (gauge)
+    loadforge_latency_p95_ms            (gauge)
+    loadforge_latency_p99_ms            (gauge)
+    loadforge_latency_avg_ms            (gauge)
+    loadforge_latency_max_ms            (gauge)
+
+    # Errors
+    loadforge_errors_total              (counter)
+    loadforge_error_rate_percent        (gauge)
+
+    # HTTP status codes
+    loadforge_http_status_total         (counter, label: code="200|404|500|...")
+
+    # Throughput
+    loadforge_bytes_received_total      (counter)
+    loadforge_bytes_sent_total          (counter)
+
+GRAFANA DASHBOARD:
+    File: grafana/loadforge-dashboard.json  (importable via Grafana UI)
+
+    Panels:
+    - Row 1: Test Status (running/idle), Active Workers, Elapsed Time
+    - Row 2: RPS (gauge + time series), Success Rate %, Error Rate %
+    - Row 3: Latency percentiles time series (P50, P95, P99 on one chart)
+    - Row 4: HTTP status code breakdown (bar chart)
+    - Row 5: Bytes in/out over time
+
+    Variables:
+    - $datasource    (Prometheus datasource selector)
+    - $test_name     (filter by specific test if multiple run simultaneously)
+
+PROMETHEUS SCRAPE CONFIG EXAMPLE:
+    # Add to prometheus.yml
+    scrape_configs:
+      - job_name: 'loadforge'
+        scrape_interval: 2s       # scrape every 2 seconds for live updates
+        static_configs:
+          - targets: ['localhost:8080']
+
+IMPLEMENTATION NOTES:
+    - Use the official prometheus/client_golang library for metric registration
+    - Register metrics in web/server.go at startup
+    - Update metric values from the active RunRecord in a background goroutine
+      (polling every 500ms or via channel updates from the loader)
+    - /metrics endpoint should return empty/zero values when no test is running
+    - Keep the prometheus client as an optional dependency (build tag: prometheus)
+      so users without Prometheus don't pull in the extra dependency
+    - Ship the Grafana dashboard JSON in a /grafana directory in the repo
+
+FILES TO MODIFY / CREATE:
+    - web/server.go                         (register /metrics route)
+    - web/metrics.go                        (new: prometheus metric definitions)
+    - web/handler_metrics.go               (new: /metrics handler)
+    - grafana/loadforge-dashboard.json     (new: Grafana dashboard)
+    - go.mod                               (add prometheus/client_golang)
+
+
+--------------------------------------------------------------------------------
+FEATURE 5: CI/CD NATIVE MODE (GITHUB ACTIONS / GITLAB CI)
+--------------------------------------------------------------------------------
+
+OVERVIEW:
+    Add a dedicated --ci flag to the LoadForge CLI that switches output to
+    machine-readable formats (JUnit XML + structured JSON), generates a GitHub
+    Actions job summary with rich markdown tables and charts, and ensures proper
+    exit codes so pipelines pass or fail correctly. Publish a ready-to-use
+    GitHub Action (loadforge-action) to the GitHub Marketplace so any project
+    can integrate load testing in two lines of YAML.
+
+USE CASE:
+    A team wants to run a load test on every pull request to ensure no PR
+    introduces a performance regression. They add LoadForge to their GitHub
+    Actions workflow. If P95 latency degrades by more than 20% compared to the
+    main branch baseline, the PR check fails and the developer is notified
+    before merging.
+
+CLI USAGE:
+    # CI mode with all output formats
+    loadforge run scenario.yaml --ci
+
+    # CI mode with custom output paths
+    loadforge run scenario.yaml --ci \
+      --junit-out results/junit.xml \
+      --json-out results/summary.json
+
+    # Fail only if assertions breach (default behavior in --ci mode)
+    loadforge run scenario.yaml --ci --fail-on-assertion
+
+JUNIT XML OUTPUT (results/junit.xml):
+    <?xml version="1.0" encoding="UTF-8"?>
+    <testsuites name="LoadForge" time="60.0" tests="4" failures="1">
+      <testsuite name="API Load Test" time="60.0" tests="4" failures="1">
+        <testcase name="p95_latency less_than 400ms" time="60.0">
+          <!-- passes silently -->
+        </testcase>
+        <testcase name="error_rate less_than 0.5%" time="60.0">
+          <failure message="error_rate 1.2% exceeded threshold 0.5%">
+            Expected: error_rate &lt; 0.5%
+            Actual:   1.2%
+          </failure>
+        </testcase>
+      </testsuite>
+    </testsuites>
+
+    Note: JUnit XML is understood natively by GitHub Actions, GitLab CI,
+    Jenkins, CircleCI, and most other CI platforms — test results appear
+    in the pipeline UI automatically.
+
+JSON SUMMARY OUTPUT (results/summary.json):
+    {
+      "run_id": "abc123",
+      "test_name": "API Load Test",
+      "started_at": "2026-04-12T10:00:00Z",
+      "duration_seconds": 60,
+      "profile": "ramp",
+      "workers": 50,
+      "metrics": {
+        "total_requests": 18450,
+        "success_rate": 98.8,
+        "error_rate": 1.2,
+        "rps_avg": 307.5,
+        "rps_peak": 412.0,
+        "latency_p50_ms": 180,
+        "latency_p95_ms": 390,
+        "latency_p99_ms": 820
+      },
+      "assertions": [
+        { "metric": "p95_latency", "operator": "less_than", "threshold": 400, "actual": 390, "passed": true },
+        { "metric": "error_rate",  "operator": "less_than", "threshold": 0.5, "actual": 1.2, "passed": false }
+      ],
+      "passed": false,
+      "exit_code": 1
+    }
+
+GITHUB ACTIONS JOB SUMMARY:
+    When running inside GitHub Actions (GITHUB_ACTIONS=true env var is set),
+    LoadForge automatically writes a rich summary to $GITHUB_STEP_SUMMARY:
+
+    ## LoadForge Load Test Results
+
+    | Metric          | Value     | Threshold | Status |
+    |-----------------|-----------|-----------|--------|
+    | P95 Latency     | 390ms     | < 400ms   | PASS   |
+    | Error Rate      | 1.2%      | < 0.5%    | FAIL   |
+    | RPS (avg)       | 307.5     | > 100     | PASS   |
+
+    **Overall Result: FAILED**
+    Total Requests: 18,450 | Duration: 60s | Workers: 50 (ramp)
+
+GITHUB ACTION (loadforge-action):
+    Repository: github.com/[org]/loadforge-action
+    Marketplace: Published as "LoadForge Load Test"
+
+    Usage in workflow:
+    # .github/workflows/load-test.yml
+    name: Load Test
+    on: [pull_request]
+
+    jobs:
+      load-test:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+
+          - name: Run Load Test
+            uses: [org]/loadforge-action@v1
+            with:
+              scenario: ./testdata/api-load.yaml
+              fail-on-failure: true
+
+          - name: Upload Results
+            uses: actions/upload-artifact@v4
+            if: always()
+            with:
+              name: load-test-results
+              path: results/
+
+    Action inputs:
+        scenario          (required) path to scenario YAML file
+        version           (optional) LoadForge version to use, default: latest
+        fail-on-failure   (optional) fail workflow if assertions fail, default: true
+        junit-out         (optional) path for JUnit XML output
+        json-out          (optional) path for JSON summary output
+
+GITLAB CI EXAMPLE:
+    load-test:
+      image: golang:1.25
+      stage: test
+      script:
+        - go install github.com/[org]/loadforge/cmd/loadforge@latest
+        - loadforge run scenario.yaml --ci --junit-out results/junit.xml
+      artifacts:
+        reports:
+          junit: results/junit.xml
+        paths:
+          - results/
+        when: always
+
+IMPLEMENTATION NOTES:
+    - Detect CI environment via GITHUB_ACTIONS, GITLAB_CI, CI env variables
+    - Add --ci, --junit-out, --json-out flags to the run command
+    - Create internal/report/junit.go for JUnit XML serialization
+    - Create internal/report/json.go for JSON summary serialization
+    - Write to $GITHUB_STEP_SUMMARY when GITHUB_ACTIONS is set
+    - The GitHub Action itself is a separate small repo with action.yml,
+      a shell script that downloads the appropriate LoadForge binary for
+      the runner OS/arch, and runs it with the provided inputs
+    - Ensure exit code 0 = all assertions passed, exit code 1 = failure,
+      exit code 2 = configuration/runtime error (distinct codes help CI)
+
+FILES TO MODIFY / CREATE:
+    - internal/cli/run.go                   (add --ci, --junit-out, --json-out flags)
+    - internal/report/junit.go             (new: JUnit XML serialization)
+    - internal/report/json.go             (new: JSON summary serialization)
+    - internal/report/github.go           (new: GitHub Actions step summary writer)
+    - loadforge-action/action.yml          (new: GitHub Action definition)
+    - loadforge-action/entrypoint.sh       (new: Action shell script)
+    - .github/workflows/release.yml        (update: publish binaries on release tag)
+
+
+================================================================================
+IMPLEMENTATION PRIORITY RECOMMENDATION
+================================================================================
+
+Phase 1 (Start here - highest impact, moderate effort):
+    1. Assertions & SLA Thresholds       (unlocks CI/CD value immediately)
+    2. CI/CD Native Mode                 (builds directly on top of assertions)
+
+Phase 2 (Core functionality expansion):
+    3. Response Chain & Variable Extraction  (opens up realistic test scenarios)
+
+Phase 3 (Presentation & ecosystem):
+    4. HTML / PDF Report Generation      (improves shareability with stakeholders)
+    5. Prometheus + Grafana Integration  (enterprise observability)
+
+================================================================================
+END OF FEATURES DOCUMENT
+================================================================================
