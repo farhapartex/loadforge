@@ -130,7 +130,7 @@ setup_app_dir() {
   fi
 }
 
-install() {
+do_install() {
   require curl
 
   local os arch version binary_name web_binary_name download_url web_download_url tmpdir
@@ -200,7 +200,7 @@ uninstall() {
 }
 
 case "${1:-install}" in
-  install)   install ;;
+  install)   do_install ;;
   uninstall) uninstall ;;
   *) error "Unknown command '${1}'. Use: install | uninstall" ;;
 esac
