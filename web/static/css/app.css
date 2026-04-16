@@ -378,6 +378,12 @@ a {
   border-color: var(--color-primary-hover);
 }
 
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .btn-outline {
   background: transparent;
   color: var(--color-text-secondary);
@@ -1720,4 +1726,93 @@ a {
 .assertion-summary-badge.has-failures {
   background: #fee2e2;
   color: #991b1b;
+}
+
+
+.base-url-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 20px;
+  vertical-align: middle;
+  margin-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-detected {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge-inferred {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.badge-required {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.input-readonly {
+  background: #f6f6f6 !important;
+  color: var(--color-text-secondary) !important;
+  cursor: default;
+}
+
+.duration-input {
+  display: flex;
+  align-items: stretch;
+}
+
+.duration-input input[type="number"] {
+  flex: 1;
+  min-width: 0;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-right: none;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  font-size: 14px;
+  color: var(--color-text);
+  background: #fff;
+  outline: none;
+  font-family: var(--font-sans);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.duration-input input[type="number"]:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.14);
+  position: relative;
+  z-index: 1;
+}
+
+.duration-input select {
+  width: 105px;
+  flex-shrink: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  border-left: 1px solid var(--color-border);
+  padding: 8px 26px 8px 10px;
+  border: 1px solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-text);
+  background: #f6f6f6;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  border-left: none;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.duration-input select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.14);
+  position: relative;
+  z-index: 1;
 }

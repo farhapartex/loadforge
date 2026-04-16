@@ -56,17 +56,14 @@ func resolveURL(baseURL string, stepURL string) (string, error) {
 		return "", fmt.Errorf("Step URL %q is relative but no base url is set in config", stepURL)
 	}
 
-	base, err := url.Parse(baseURL)
-	if err != nil {
+	if _, err := url.Parse(baseURL); err != nil {
 		return "", fmt.Errorf("Invalid base url %q: %w", baseURL, err)
 	}
 
-	ref, err := url.Parse(stepURL)
-	if err != nil {
-		return "", fmt.Errorf("Invalid step url %q: %w", stepURL, err)
-	}
+	base := strings.TrimRight(baseURL, "/")
+	path := "/" + strings.TrimLeft(stepURL, "/")
 
-	return base.ResolveReference(ref).String(), nil
+	return base + path, nil
 }
 
 func buildBody(body *config.Body) (io.Reader, string, error) {

@@ -48,6 +48,7 @@ func (s *Server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		Token:    strings.TrimSpace(r.FormValue("token")),
 		Profile:  strings.TrimSpace(r.FormValue("profile")),
 		Duration: strings.TrimSpace(r.FormValue("duration")),
+		BaseURL:  strings.TrimSpace(r.FormValue("base_url")),
 	}
 	if w2, err2 := strconv.Atoi(r.FormValue("workers")); err2 == nil && w2 > 0 {
 		input.Workers = w2

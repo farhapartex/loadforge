@@ -15,4 +15,5 @@ type Input struct {
 	Workers  int
 	Duration string
 	Profile  string
+	BaseURL  string
 }

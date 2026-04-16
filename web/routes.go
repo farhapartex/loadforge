@@ -15,6 +15,7 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("/api/logs/stream", s.requireAuth(http.HandlerFunc(s.logs.handleStream)))
 	s.mux.Handle("/api/logs", s.requireAuth(http.HandlerFunc(s.handleLogClear)))
 	s.mux.Handle("/api/run", s.requireAuth(http.HandlerFunc(s.handleRun)))
+	s.mux.Handle("/api/spec/inspect", s.requireAuth(http.HandlerFunc(s.handleSpecInspect)))
 	s.mux.Handle("/api/status", s.requireAuth(http.HandlerFunc(s.handleStatus)))
 
 	s.mux.Handle("/history", s.requireAuth(http.HandlerFunc(s.handleHistory)))

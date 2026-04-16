@@ -55,7 +55,10 @@ func (l *OpenAPILoader) Load(input specloader.Input) (*config.Config, error) {
 		opts.Duration = input.Duration
 	}
 
-	baseURL := spec.BaseURL
+	baseURL := input.BaseURL
+	if baseURL == "" {
+		baseURL = spec.BaseURL
+	}
 	if baseURL == "" && input.URL != "" {
 		if u, err := url.Parse(input.URL); err == nil && u.Host != "" {
 			baseURL = u.Scheme + "://" + u.Host

@@ -35,15 +35,32 @@
     }, 4000);
   });
 
-  var modalOverlay   = document.getElementById('modal-run-test');
-  var btnRunTest     = document.getElementById('btn-run-test');
-  var btnStopTest    = document.getElementById('btn-stop-test');
-  var btnModalClose  = document.getElementById('btn-modal-close');
-  var btnModalCancel = document.getElementById('btn-modal-cancel');
-  var btnModalSubmit = document.getElementById('btn-modal-submit');
-  var inputApiUrl    = document.getElementById('input-api-doc-url');
-  var runErrorEl     = document.getElementById('run-error');
-  var inputSource    = document.getElementById('input-source');
+  var modalOverlay        = document.getElementById('modal-run-test');
+  var btnRunTest          = document.getElementById('btn-run-test');
+  var btnStopTest         = document.getElementById('btn-stop-test');
+  var btnModalClose       = document.getElementById('btn-modal-close');
+  var btnModalCancel      = document.getElementById('btn-modal-cancel');
+  var btnModalSubmit      = document.getElementById('btn-modal-submit');
+  var btnCheckSpec        = document.getElementById('btn-check-spec');
+  var inputApiUrl         = document.getElementById('input-api-doc-url');
+  var inputBaseUrl        = document.getElementById('input-base-url');
+  var baseUrlBadge        = document.getElementById('base-url-badge');
+  var specCheckError      = document.getElementById('spec-check-error');
+  var specBaseUrlSection  = document.getElementById('spec-base-url-section');
+  var runErrorEl          = document.getElementById('run-error');
+  var inputSource         = document.getElementById('input-source');
+
+  var specChecked = false;
+
+  function resetSpecCheck() {
+    specChecked = false;
+    if (specCheckError)   { specCheckError.hidden = true; specCheckError.textContent = ''; }
+    if (specBaseUrlSection) specBaseUrlSection.hidden = true;
+    if (inputBaseUrl)     { inputBaseUrl.value = ''; inputBaseUrl.readOnly = false; inputBaseUrl.classList.remove('input-readonly'); }
+    if (baseUrlBadge)     { baseUrlBadge.textContent = ''; baseUrlBadge.className = 'base-url-badge'; }
+    if (btnCheckSpec)     { btnCheckSpec.disabled = false; btnCheckSpec.textContent = 'Check API Doc'; }
+    if (btnModalSubmit)     btnModalSubmit.disabled = true;
+  }
 
   function openModal() {
     if (!modalOverlay) return;
@@ -59,6 +76,7 @@
       if (el.defaultValue !== undefined) el.value = el.defaultValue;
     });
     showRunError('');
+    resetSpecCheck();
   }
 
   function showRunError(msg) {
@@ -70,6 +88,18 @@
       runErrorEl.textContent = '';
       runErrorEl.style.display = 'none';
     }
+  }
+
+  if (inputApiUrl) {
+    inputApiUrl.addEventListener('input', function () {
+      if (specChecked) resetSpecCheck();
+    });
+  }
+
+  if (inputBaseUrl) {
+    inputBaseUrl.addEventListener('input', function () {
+      if (btnModalSubmit) btnModalSubmit.disabled = !inputBaseUrl.value.trim();
+    });
   }
 
   var sourceTabs = document.querySelectorAll('.source-tab:not([disabled])');
@@ -90,8 +120,85 @@
       });
       var activePanel = document.getElementById('panel-' + source);
       if (activePanel) activePanel.hidden = false;
+
+      if (source === 'postman') {
+        if (btnCheckSpec)   btnCheckSpec.hidden = true;
+        if (btnModalSubmit) btnModalSubmit.disabled = false;
+      } else {
+        if (btnCheckSpec)   btnCheckSpec.hidden = false;
+        resetSpecCheck();
+      }
     });
   });
+
+  if (btnCheckSpec) {
+    btnCheckSpec.addEventListener('click', function () {
+      var url = inputApiUrl ? inputApiUrl.value.trim() : '';
+      if (!url) {
+        if (inputApiUrl) inputApiUrl.focus();
+        return;
+      }
+
+      if (specCheckError)   { specCheckError.hidden = true; specCheckError.textContent = ''; }
+      btnCheckSpec.disabled = true;
+      btnCheckSpec.textContent = 'Checking…';
+
+      var token = document.getElementById('input-jwt-token');
+      var tokenVal = token ? token.value.trim() : '';
+      var inspectUrl = '/api/spec/inspect?url=' + encodeURIComponent(url) +
+        (tokenVal ? '&token=' + encodeURIComponent(tokenVal) : '');
+
+      fetch(inspectUrl)
+        .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+        .then(function (r) {
+          if (!r.ok) {
+            if (specCheckError) {
+              specCheckError.textContent = r.body.error || 'Failed to fetch API doc.';
+              specCheckError.hidden = false;
+            }
+            btnCheckSpec.disabled = false;
+            btnCheckSpec.textContent = 'Check API Doc';
+            return;
+          }
+
+          specChecked = true;
+          var detectedBaseUrl = (r.body.base_url || '').trim();
+          var detected = r.body.detected === true;
+
+          if (specBaseUrlSection) specBaseUrlSection.hidden = false;
+
+          if (detectedBaseUrl) {
+            inputBaseUrl.value = detectedBaseUrl;
+            if (detected) {
+              inputBaseUrl.readOnly = true;
+              inputBaseUrl.classList.add('input-readonly');
+              baseUrlBadge.textContent = 'Detected from spec';
+              baseUrlBadge.className = 'base-url-badge badge-detected';
+            } else {
+              inputBaseUrl.readOnly = true;
+              inputBaseUrl.classList.add('input-readonly');
+              baseUrlBadge.textContent = 'Inferred from URL';
+              baseUrlBadge.className = 'base-url-badge badge-inferred';
+            }
+            if (btnModalSubmit) btnModalSubmit.disabled = false;
+          } else {
+            inputBaseUrl.value = '';
+            inputBaseUrl.readOnly = false;
+            baseUrlBadge.textContent = 'Not found — please provide';
+            baseUrlBadge.className = 'base-url-badge badge-required';
+            setTimeout(function () { inputBaseUrl.focus(); }, 50);
+          }
+        })
+        .catch(function () {
+          if (specCheckError) {
+            specCheckError.textContent = 'Network error. Please try again.';
+            specCheckError.hidden = false;
+          }
+          btnCheckSpec.disabled = false;
+          btnCheckSpec.textContent = 'Check API Doc';
+        });
+    });
+  }
 
   if (btnRunTest)     btnRunTest.addEventListener('click', openModal);
   if (btnModalClose)  btnModalClose.addEventListener('click', closeModal);
@@ -119,12 +226,18 @@
           showRunError('API Doc URL is required.');
           return;
         }
+        if (!inputBaseUrl || !inputBaseUrl.value.trim()) {
+          if (inputBaseUrl) inputBaseUrl.focus();
+          showRunError('Base URL is required.');
+          return;
+        }
       }
 
       var formData = new FormData();
       formData.append('source', source);
 
-      if (inputApiUrl && inputApiUrl.value.trim()) formData.append('spec_url', inputApiUrl.value.trim());
+      if (inputApiUrl && inputApiUrl.value.trim())   formData.append('spec_url', inputApiUrl.value.trim());
+      if (inputBaseUrl && inputBaseUrl.value.trim())  formData.append('base_url', inputBaseUrl.value.trim());
 
       var token = document.getElementById('input-jwt-token');
       if (token && token.value.trim()) formData.append('token', token.value.trim());
@@ -132,8 +245,11 @@
       var workers = document.getElementById('input-workers');
       if (workers && workers.value) formData.append('workers', workers.value);
 
-      var duration = document.getElementById('input-duration');
-      if (duration && duration.value.trim()) formData.append('duration', duration.value.trim());
+      var durationValue = document.getElementById('input-duration-value');
+      var durationUnit  = document.getElementById('input-duration-unit');
+      if (durationValue && durationUnit && durationValue.value) {
+        formData.append('duration', durationValue.value + durationUnit.value);
+      }
 
       var profile = document.getElementById('input-profile');
       if (profile && profile.value) formData.append('profile', profile.value);
