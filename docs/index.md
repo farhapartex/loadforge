@@ -47,3 +47,11 @@ curl -fsSL https://github.com/farhapartex/loadforge/releases/latest/download/ins
 Then open [http://localhost:8090](http://localhost:8090) — the web UI starts automatically.
 
 See the [Installation](installation.md) guide for full details.
+
+---
+
+## Video Walkthrough
+
+New to LoadForge? Watch the full demo to see installation, running your first test, and reviewing results — all in under 4 minutes.
+
+[![LoadForge Demo](https://img.youtube.com/vi/Z8Q48Vo-BEk/0.jpg)](https://www.youtube.com/watch?v=Z8Q48Vo-BEk)

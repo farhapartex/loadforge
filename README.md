@@ -92,6 +92,14 @@ Assertions let you define SLA thresholds that automatically mark a test as passe
 
 ---
 
+## Video Walkthrough
+
+[![LoadForge Demo](https://img.youtube.com/vi/Z8Q48Vo-BEk/0.jpg)](https://www.youtube.com/watch?v=Z8Q48Vo-BEk)
+
+New to LoadForge? Watch the full demo — installation, running your first test, and reviewing results in under 4 minutes.
+
+---
+
 ## Feedback & Support
 
 Have a question, found a bug, or want to suggest a feature?
@@ -106,3 +114,5 @@ Contributions are welcome. Open a pull request or start a discussion in Issues.
 ## License
 
 LoadForge is released under the [MIT License](LICENSE).
+
+
