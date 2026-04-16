@@ -132,17 +132,17 @@ setup_app_dir() {
 
 install() {
   require curl
-  require tar
 
-  local os arch version ver_num archive_name download_url tmpdir
+  local os arch version binary_name web_binary_name download_url web_download_url tmpdir
 
   os=$(detect_os)
   arch=$(detect_arch)
   version=$(latest_version)
-  ver_num="${version#v}"
 
-  archive_name="${BINARY}_${ver_num}_${os}_${arch}.tar.gz"
-  download_url="https://github.com/${REPO}/releases/download/${version}/${archive_name}"
+  binary_name="${BINARY}-${os}_${arch}"
+  web_binary_name="${BINARY}-web-${os}_${arch}"
+  download_url="https://github.com/${REPO}/releases/download/${version}/${binary_name}"
+  web_download_url="https://github.com/${REPO}/releases/download/${version}/${web_binary_name}"
 
   info "Installing ${BINARY} ${version} (${os}/${arch})"
   info "Downloading ${download_url}"
@@ -150,10 +150,11 @@ install() {
   tmpdir=$(mktemp -d)
   trap 'rm -rf "$tmpdir"' EXIT
 
-  curl -fsSL "$download_url" -o "${tmpdir}/${archive_name}" \
+  curl -fsSL "$download_url" -o "${tmpdir}/${BINARY}" \
     || error "Download failed. Check that ${version} exists at https://github.com/${REPO}/releases"
 
-  tar -xzf "${tmpdir}/${archive_name}" -C "$tmpdir"
+  curl -fsSL "$web_download_url" -o "${tmpdir}/${BINARY}-web" \
+    || error "Download failed. Check that ${version} exists at https://github.com/${REPO}/releases"
 
   install -m 755 "${tmpdir}/${BINARY}" "${INSTALL_DIR}/${BINARY}" \
     || error "Failed to install binary to ${INSTALL_DIR}. Try running with sudo."
