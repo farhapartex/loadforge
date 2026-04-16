@@ -12,7 +12,6 @@ Most load testing tools are either too heavy (JMeter, Gatling) or too limited (a
 
 - **Zero dependencies** — a single binary, no JVM, no Node, no Docker required
 - **Two interfaces** — use the CLI for scripts and CI pipelines, or the web UI for interactive testing
-- **YAML-first** — define your entire test scenario in a readable YAML file that lives in your repo
 - **OpenAPI / Swagger support** — point at an API spec URL and LoadForge generates and runs the scenario for you
 - **Multiple load profiles** — constant, ramp, step, and spike traffic patterns out of the box
 - **Assertions & SLA thresholds** — define pass/fail criteria and catch regressions automatically
@@ -24,7 +23,6 @@ Most load testing tools are either too heavy (JMeter, Gatling) or too limited (a
 
 | Feature | Description |
 |---|---|
-| **CLI load testing** | Run scenarios from YAML files with a live terminal UI |
 | **Web UI** | Browser-based dashboard to trigger, monitor, and review tests |
 | **OpenAPI / Swagger import** | Auto-generate scenarios from OpenAPI 3.x and Swagger 2.0 specs |
 | **HAR file support** | Convert or replay browser HAR recordings as load tests |
@@ -47,10 +45,6 @@ curl -fsSL https://raw.githubusercontent.com/farhapartex/loadforge/main/scripts/
 ```
 
 This installs both `loadforge` (CLI) and `loadforge-web` (web UI server) to `/usr/local/bin/` and creates `~/.loadforge/` with a default configuration.
-
-### Manual download
-
-Download the binaries for your platform from the [latest release](https://github.com/farhapartex/loadforge/releases/latest) and place them in your `$PATH`.
 
 ---
 
