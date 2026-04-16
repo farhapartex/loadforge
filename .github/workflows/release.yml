@@ -140,7 +140,7 @@ jobs:
 
           ### CLI Installation (Linux / macOS)
           ```bash
-          curl -fsSL https://raw.githubusercontent.com/farhapartex/loadforge/main/scripts/install.sh | sudo bash
+          curl -fsSL https://github.com/farhapartex/loadforge/releases/latest/download/install.sh | sudo bash
           ```
 
           Then start the web UI:
@@ -155,4 +155,5 @@ jobs:
           gh release create "$TAG" \
             --title "LoadForge ${TAG}" \
             --notes-file release-notes.md \
+            scripts/install.sh \
             dist/*

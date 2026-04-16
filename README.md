@@ -41,7 +41,7 @@ Most load testing tools are either too heavy (JMeter, Gatling) or too limited (a
 ### Linux / macOS (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/farhapartex/loadforge/main/scripts/install.sh | sudo bash
+curl -fsSL https://github.com/farhapartex/loadforge/releases/latest/download/install.sh | sudo bash
 ```
 
 This installs both `loadforge` (CLI) and `loadforge-web` (web UI server) to `/usr/local/bin/` and creates `~/.loadforge/` with a default configuration.

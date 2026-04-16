@@ -50,10 +50,9 @@ detect_arch() {
 }
 
 latest_version() {
-  local version
-  version=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep '"tag_name"' \
-    | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+  local url version
+  url=$(curl -fsSL -o /dev/null -w "%{url_effective}" "https://github.com/${REPO}/releases/latest")
+  version="${url##*/}"
   [ -n "$version" ] || error "Could not determine the latest release version."
   echo "$version"
 }
