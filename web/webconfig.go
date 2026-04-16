@@ -79,7 +79,7 @@ func defaultWebConfig() *WebConfig {
 	}
 
 	return &WebConfig{
-		Addr:              ":8080",
+		Addr:              ":8090",
 		Username:          "admin",
 		Password:          "admin",
 		SessionTTL:        "24h",

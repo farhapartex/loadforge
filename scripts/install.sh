@@ -5,6 +5,9 @@ REPO="farhapartex/loadforge"
 BINARY="loadforge"
 INSTALL_DIR="/usr/local/bin"
 APP_DIR_NAME=".loadforge"
+LAUNCHD_LABEL="com.loadforge.web"
+LAUNCHD_PLIST="/Library/LaunchDaemons/${LAUNCHD_LABEL}.plist"
+SYSTEMD_SERVICE="/etc/systemd/system/loadforge-web.service"
 
 info()  { echo "[loadforge] $*"; }
 error() { echo "[loadforge] ERROR: $*" >&2; exit 1; }
@@ -12,7 +15,6 @@ error() { echo "[loadforge] ERROR: $*" >&2; exit 1; }
 require() {
   command -v "$1" >/dev/null 2>&1 || error "'$1' is required but not installed."
 }
-
 
 real_user() {
   if [ -n "${SUDO_USER:-}" ]; then
@@ -28,7 +30,6 @@ real_home() {
   if command -v getent >/dev/null 2>&1; then
     getent passwd "$user" | cut -d: -f6
   else
-    # macOS fallback
     eval echo "~$user"
   fi
 }
@@ -63,7 +64,7 @@ write_default_config() {
   local log_file="$3"
 
   cat > "$config_file" <<EOF
-addr: :8080
+addr: :8090
 username: admin
 password: admin
 session_ttl: 24h
@@ -94,12 +95,7 @@ EOF
 }
 
 setup_app_dir() {
-  local user
-  local home
-  local app_dir
-  local config_file
-  local history_file
-  local log_file
+  local user home app_dir config_file history_file log_file
 
   user=$(real_user)
   home=$(real_home)
@@ -123,9 +119,100 @@ setup_app_dir() {
     info "Created history file at ${history_file}"
   fi
 
-  # Ensure the real user owns the directory (not root)
   if [ -n "${SUDO_USER:-}" ]; then
     chown -R "${user}:$(id -gn "$user")" "$app_dir"
+  fi
+}
+
+setup_service() {
+  local os user home app_dir log_file config_file
+
+  os=$(detect_os)
+  user=$(real_user)
+  home=$(real_home)
+  app_dir="${home}/${APP_DIR_NAME}"
+  config_file="${app_dir}/web.yml"
+  log_file="${app_dir}/load_forge.logs"
+
+  if [ "$os" = "linux" ]; then
+    info "Registering systemd service..."
+    cat > "$SYSTEMD_SERVICE" <<EOF
+[Unit]
+Description=LoadForge Web UI
+After=network.target
+
+[Service]
+ExecStart=${INSTALL_DIR}/${BINARY}-web --config ${config_file}
+Restart=always
+User=${user}
+StandardOutput=append:${log_file}
+StandardError=append:${log_file}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable loadforge-web
+    systemctl start loadforge-web
+    info "Service started. Check status: systemctl status loadforge-web"
+
+  elif [ "$os" = "darwin" ]; then
+    info "Registering launchd service..."
+    cat > "$LAUNCHD_PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${LAUNCHD_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${INSTALL_DIR}/${BINARY}-web</string>
+        <string>--config</string>
+        <string>${config_file}</string>
+    </array>
+    <key>UserName</key>
+    <string>${user}</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>${log_file}</string>
+    <key>StandardErrorPath</key>
+    <string>${log_file}</string>
+</dict>
+</plist>
+EOF
+    launchctl load -w "$LAUNCHD_PLIST"
+    info "Service started. Open http://localhost:8090 in your browser."
+  fi
+}
+
+remove_service() {
+  local os
+  os=$(detect_os)
+
+  if [ "$os" = "linux" ]; then
+    if systemctl is-active --quiet loadforge-web 2>/dev/null; then
+      systemctl stop loadforge-web
+      info "Stopped loadforge-web service"
+    fi
+    if systemctl is-enabled --quiet loadforge-web 2>/dev/null; then
+      systemctl disable loadforge-web
+    fi
+    if [ -f "$SYSTEMD_SERVICE" ]; then
+      rm -f "$SYSTEMD_SERVICE"
+      systemctl daemon-reload
+      info "Removed systemd service"
+    fi
+
+  elif [ "$os" = "darwin" ]; then
+    if [ -f "$LAUNCHD_PLIST" ]; then
+      launchctl unload -w "$LAUNCHD_PLIST" 2>/dev/null || true
+      rm -f "$LAUNCHD_PLIST"
+      info "Removed launchd service"
+    fi
   fi
 }
 
@@ -161,41 +248,44 @@ do_install() {
   install -m 755 "${tmpdir}/${BINARY}-web" "${INSTALL_DIR}/${BINARY}-web" \
     || error "Failed to install loadforge-web to ${INSTALL_DIR}. Try running with sudo."
 
-  info "Installed binary to ${INSTALL_DIR}/${BINARY}"
-  info "Installed binary to ${INSTALL_DIR}/${BINARY}-web"
+  info "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"
+  info "Installed ${BINARY}-web to ${INSTALL_DIR}/${BINARY}-web"
 
   setup_app_dir
+  setup_service
 
   echo ""
   info "Installation complete!"
   info "  Binary  : ${INSTALL_DIR}/${BINARY}"
   info "  Config  : $(real_home)/${APP_DIR_NAME}/web.yml"
   info "  History : $(real_home)/${APP_DIR_NAME}/load_forge_history.json"
+  info "  Web UI  : http://localhost:8090  (admin / admin)"
   echo ""
-  info "Run '${BINARY} version' to verify."
-  info "Run '${BINARY} --help' to get started."
+  info "To uninstall: sudo loadforge --uninstall"
 }
 
 uninstall() {
-  local target="${INSTALL_DIR}/${BINARY}"
   local app_dir
   app_dir="$(real_home)/${APP_DIR_NAME}"
 
-  if [ ! -f "$target" ]; then
-    error "${BINARY} is not installed at ${target}."
+  remove_service
+
+  if [ -f "${INSTALL_DIR}/${BINARY}" ]; then
+    rm -f "${INSTALL_DIR}/${BINARY}"
+    info "Removed ${INSTALL_DIR}/${BINARY}"
   fi
 
-  rm -f "$target"
-  rm -f "${INSTALL_DIR}/${BINARY}-web"
-  info "Removed ${target}"
-  info "Removed ${INSTALL_DIR}/${BINARY}-web"
+  if [ -f "${INSTALL_DIR}/${BINARY}-web" ]; then
+    rm -f "${INSTALL_DIR}/${BINARY}-web"
+    info "Removed ${INSTALL_DIR}/${BINARY}-web"
+  fi
 
   if [ -d "$app_dir" ]; then
     rm -rf "$app_dir"
     info "Removed ${app_dir}"
   fi
 
-  info "${BINARY} has been fully uninstalled."
+  info "LoadForge has been fully uninstalled."
 }
 
 case "${1:-install}" in

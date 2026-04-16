@@ -44,7 +44,9 @@ Most load testing tools are either too heavy (JMeter, Gatling) or too limited (a
 curl -fsSL https://github.com/farhapartex/loadforge/releases/latest/download/install.sh | sudo bash
 ```
 
-This installs both `loadforge` (CLI) and `loadforge-web` (web UI server) to `/usr/local/bin/` and creates `~/.loadforge/` with a default configuration.
+This installs both `loadforge` (CLI) and `loadforge-web` (web UI server) to `/usr/local/bin/`, creates `~/.loadforge/` with a default configuration, and **automatically starts the web UI** as a background service. Open [http://localhost:8090](http://localhost:8090) immediately after installation — no extra commands needed.
+
+Default credentials: `admin` / `admin`
 
 ---
 
@@ -54,7 +56,7 @@ This installs both `loadforge` (CLI) and `loadforge-web` (web UI server) to `/us
 sudo loadforge --uninstall
 ```
 
-This removes both binaries from `/usr/local/bin/` and deletes the `~/.loadforge/` data directory.
+This stops and removes the background service, removes both binaries from `/usr/local/bin/`, and deletes the `~/.loadforge/` data directory.
 
 ---
 
@@ -62,11 +64,9 @@ This removes both binaries from `/usr/local/bin/` and deletes the `~/.loadforge/
 
 ### Web UI
 
-```bash
-loadforge-web
-```
+After installation the web UI starts automatically. Open [http://localhost:8090](http://localhost:8090) in your browser.
 
-Open `http://localhost:8080` in your browser. Default credentials: `admin` / `admin`.
+Default credentials: `admin` / `admin`
 
 Paste an OpenAPI or Swagger spec URL, set your load parameters, and click **Start Test**. Live logs stream to the dashboard. Past runs appear under **History**.
 

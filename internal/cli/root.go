@@ -3,12 +3,15 @@ package cli
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/cobra"
 )
 
 const installPath = "/usr/local/bin/loadforge"
+const installPathWeb = "/usr/local/bin/loadforge-web"
 
 var uninstall bool
 
@@ -41,10 +44,14 @@ func runUninstall() error {
 		return fmt.Errorf("loadforge is not installed at %s", installPath)
 	}
 
-	if err := os.Remove(installPath); err != nil {
-		return fmt.Errorf("failed to remove %s: %w (try running with sudo)", installPath, err)
+	stopService()
+
+	for _, path := range []string{installPath, installPathWeb} {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove %s: %w (try running with sudo)", path, err)
+		}
+		fmt.Printf("Removed %s\n", path)
 	}
-	fmt.Printf("Removed %s\n", installPath)
 
 	appDir, err := appDataDir()
 	if err == nil {
@@ -55,8 +62,28 @@ func runUninstall() error {
 		}
 	}
 
-	fmt.Println("loadforge has been uninstalled.")
+	fmt.Println("LoadForge has been fully uninstalled.")
 	return nil
+}
+
+func stopService() {
+	switch runtime.GOOS {
+	case "linux":
+		run("systemctl", "stop", "loadforge-web")
+		run("systemctl", "disable", "loadforge-web")
+		os.Remove("/etc/systemd/system/loadforge-web.service")
+		run("systemctl", "daemon-reload")
+		fmt.Println("Removed systemd service")
+	case "darwin":
+		plist := "/Library/LaunchDaemons/com.loadforge.web.plist"
+		run("launchctl", "unload", "-w", plist)
+		os.Remove(plist)
+		fmt.Println("Removed launchd service")
+	}
+}
+
+func run(name string, args ...string) {
+	_ = exec.Command(name, args...).Run()
 }
 
 func appDataDir() (string, error) {
