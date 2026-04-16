@@ -20,13 +20,7 @@ nav:
   - Home: index.md
   - Installation: installation.md
   - Quick Start: quickstart.md
-  - Configuration:
-      - Scenario File: configuration/scenario.md
-      - Load Profiles: configuration/load-profiles.md
-      - Assertions: configuration/assertions.md
-      - Auth: configuration/auth.md
   - Web UI: web-ui.md
-  - CLI Reference: cli.md
   - Uninstallation: uninstallation.md
 
 markdown_extensions:
