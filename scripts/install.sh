@@ -219,7 +219,7 @@ remove_service() {
 do_install() {
   require curl
 
-  local os arch version binary_name web_binary_name download_url web_download_url tmpdir
+  local os arch version binary_name web_binary_name download_url web_download_url
 
   os=$(detect_os)
   arch=$(detect_arch)
